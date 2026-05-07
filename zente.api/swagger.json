@@ -1,0 +1,145 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Zente API",
+    "version": "1.0.0",
+    "description": "Peer discovery for Zente WebRTC board sharing"
+  },
+  "servers": [
+    { "url": "https://vzujgvxixkimcltevogz.supabase.co/functions/v1/api" }
+  ],
+  "paths": {
+    "/peers/online": {
+      "post": {
+        "summary": "Register or refresh peer as online",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "peerId"],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "pattern": "^[\\w.-]{1,32}$",
+                    "example": "fabio"
+                  },
+                  "peerId": {
+                    "type": "string",
+                    "maxLength": 128,
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Peer upserted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Peer" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/peers/offline": {
+      "post": {
+        "summary": "Mark peer as offline",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username"],
+                "properties": {
+                  "username": { "type": "string", "example": "fabio" }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Marked offline" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/peers": {
+      "get": {
+        "summary": "Search online peers",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "maxLength": 64 },
+            "description": "Partial username match (case-insensitive)",
+            "example": "fab"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of online peers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Peer" }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Peer": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "username": { "type": "string" },
+          "peer_id": { "type": "string" },
+          "last_seen": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid input",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": { "error": { "type": "string" } }
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Internal server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": { "error": { "type": "string" } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

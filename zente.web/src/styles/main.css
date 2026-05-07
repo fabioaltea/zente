@@ -1,0 +1,479 @@
+*,
+*::before,
+*::after {
+   box-sizing: border-box;
+   margin: 0;
+   padding: 0;
+}
+
+:root {
+   --bg: #0f0f0f;
+   --surface: #1a1a1a;
+   --border: #2a2a2a;
+   --text: #f0f0f0;
+   --muted: #888;
+   --accent: #4f8ef7;
+   --accent-hover: #6ba3ff;
+   --success: #4caf50;
+   --warning: #ff9800;
+   --error: #f44336;
+}
+
+body {
+   background: var(--bg);
+   color: var(--text);
+   font-family:
+      system-ui,
+      -apple-system,
+      sans-serif;
+   min-height: 100dvh;
+}
+
+/* Board layout */
+.board-page {
+   display: flex;
+   flex-direction: column;
+   min-height: 100dvh;
+   padding: 1rem;
+   gap: 1rem;
+}
+
+.board-header {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+}
+
+.logo {
+   font-size: 1.25rem;
+   font-weight: 700;
+   letter-spacing: -0.03em;
+}
+
+.boards {
+   display: grid;
+   grid-template-columns: 1fr 1fr;
+   gap: 1rem;
+   flex: 1;
+}
+
+@media (max-width: 600px) {
+   .boards {
+      grid-template-columns: 1fr;
+   }
+}
+
+.board-col {
+   display: flex;
+   flex-direction: column;
+   gap: 0.75rem;
+}
+
+.board-col-title {
+   font-size: 0.75rem;
+   text-transform: uppercase;
+   letter-spacing: 0.06em;
+   color: var(--muted);
+}
+
+.board-empty {
+   color: var(--muted);
+   font-size: 0.875rem;
+   padding: 2rem 0;
+   text-align: center;
+}
+
+/* QR section */
+.qr-section {
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   gap: 0.75rem;
+   padding: 1rem 0;
+}
+
+.qr-wrapper {
+   background: #fff;
+   padding: 0.75rem;
+   border-radius: 12px;
+   display: inline-flex;
+}
+
+/* Drop zone */
+.drop-zone {
+   border: 2px dashed var(--border);
+   border-radius: 12px;
+   padding: 1rem;
+   display: flex;
+   flex-direction: column;
+   gap: 0.75rem;
+   min-height: 120px;
+   transition:
+      border-color 0.15s,
+      background 0.15s;
+}
+
+.drop-zone.dragging {
+   border-color: var(--accent);
+   background: rgba(79, 142, 247, 0.05);
+}
+
+.drop-hint {
+   color: var(--muted);
+   font-size: 0.875rem;
+   text-align: center;
+   padding: 1rem 0;
+}
+
+/* File grid */
+.file-grid {
+   display: grid;
+   grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+   gap: 0.5rem;
+}
+
+.file-card {
+   background: var(--surface);
+   border: 1px solid var(--border);
+   border-radius: 10px;
+   padding: 0.5rem;
+   display: flex;
+   flex-direction: column;
+   gap: 0.25rem;
+   position: relative;
+   font-size: 0.75rem;
+   overflow: hidden;
+}
+
+.file-card.remote {
+   cursor: pointer;
+   transition: background 0.15s;
+}
+
+.file-card.remote:hover {
+   background: #222;
+}
+
+.file-card.downloading {
+   opacity: 0.6;
+   cursor: default;
+}
+
+.file-thumb {
+   width: 100%;
+   aspect-ratio: 1;
+   object-fit: cover;
+   border-radius: 6px;
+}
+
+.file-icon {
+   width: 100%;
+   aspect-ratio: 1;
+   background: var(--border);
+   border-radius: 6px;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   font-size: 0.65rem;
+   font-weight: 700;
+   color: var(--muted);
+   letter-spacing: 0.05em;
+}
+
+.file-card-name {
+   overflow: hidden;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+   color: var(--text);
+}
+
+.file-card-size {
+   color: var(--muted);
+}
+
+.file-card-status {
+   color: var(--muted);
+   font-size: 0.7rem;
+}
+
+.file-card-status.tap {
+   color: var(--accent);
+}
+
+.file-card-status.done {
+   color: var(--success);
+}
+
+/* Download progress bar */
+.progress-bar-track {
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 0.15rem;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width 0.1s linear;
+}
+   background: var(--accent);
+   color: #fff;
+   border: none;
+   border-radius: 6px;
+   padding: 0.3rem 0;
+   font-size: 0.7rem;
+   font-weight: 600;
+   cursor: pointer;
+   margin-top: 0.2rem;
+}
+
+.btn-download:hover {
+   background: var(--accent-hover);
+}
+
+.file-remove {
+   position: absolute;
+   top: 4px;
+   right: 4px;
+   background: rgba(0, 0, 0, 0.6);
+   border: none;
+   color: var(--muted);
+   font-size: 0.65rem;
+   width: 18px;
+   height: 18px;
+   border-radius: 50%;
+   cursor: pointer;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   line-height: 1;
+}
+
+.file-remove:hover {
+   color: var(--error);
+}
+
+/* Buttons */
+.btn-primary {
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   background: var(--accent);
+   color: #fff;
+   border: none;
+   border-radius: 10px;
+   padding: 0.6rem 1rem;
+   font-size: 0.875rem;
+   font-weight: 600;
+   cursor: pointer;
+   text-decoration: none;
+   transition: background 0.15s;
+   align-self: flex-start;
+}
+
+.btn-primary:hover {
+   background: var(--accent-hover);
+}
+
+.btn-secondary {
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   background: transparent;
+   color: var(--accent);
+   border: 1px solid var(--accent);
+   border-radius: 10px;
+   padding: 0.6rem 1rem;
+   font-size: 0.875rem;
+   font-weight: 600;
+   cursor: pointer;
+   transition: background 0.15s;
+}
+
+.btn-secondary:hover {
+   background: rgba(79, 142, 247, 0.1);
+}
+
+.file-label {
+   cursor: pointer;
+}
+
+/* Status badge */
+.status-badge {
+   font-size: 0.75rem;
+   font-weight: 600;
+   padding: 0.25rem 0.65rem;
+   border-radius: 999px;
+}
+
+.status-connecting {
+   background: #222;
+   color: var(--muted);
+}
+.status-waiting {
+   background: #2a2200;
+   color: var(--warning);
+}
+.status-connected {
+   background: #1a2e1a;
+   color: var(--success);
+}
+.status-disconnected {
+   background: #2e1a1a;
+   color: var(--error);
+}
+
+/* Board username label */
+.board-username {
+   font-size: 0.8rem;
+   color: var(--muted);
+   font-weight: 500;
+}
+
+/* Landing page */
+.landing-page {
+   display: flex;
+   flex-direction: column;
+   min-height: 100dvh;
+   padding: 1rem;
+   gap: 1.5rem;
+}
+
+.landing-sections {
+   display: grid;
+   grid-template-columns: 1fr 1fr;
+   gap: 1rem;
+   align-items: start;
+}
+
+@media (max-width: 600px) {
+   .landing-sections {
+      grid-template-columns: 1fr;
+   }
+}
+
+.landing-section {
+   background: var(--surface);
+   border: 1px solid var(--border);
+   border-radius: 14px;
+   padding: 1.25rem;
+   display: flex;
+   flex-direction: column;
+   gap: 0.75rem;
+}
+
+.landing-section-title {
+   font-size: 0.75rem;
+   text-transform: uppercase;
+   letter-spacing: 0.06em;
+   color: var(--muted);
+}
+
+.landing-section-desc {
+   font-size: 0.875rem;
+   color: var(--muted);
+   line-height: 1.4;
+}
+
+/* Session banner */
+.session-banner {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   gap: 1rem;
+   background: #1a2e1a;
+   border: 1px solid #2a4a2a;
+   border-radius: 10px;
+   padding: 0.65rem 1rem;
+   font-size: 0.875rem;
+   color: var(--success);
+   flex-wrap: wrap;
+}
+
+.session-banner-actions {
+   display: flex;
+   gap: 0.5rem;
+}
+
+/* Form inputs */
+.input-row {
+   display: flex;
+   gap: 0.5rem;
+}
+
+.text-input {
+   flex: 1;
+   min-width: 0;
+   background: var(--bg);
+   border: 1px solid var(--border);
+   border-radius: 10px;
+   padding: 0.55rem 0.75rem;
+   color: var(--text);
+   font-size: 0.875rem;
+   outline: none;
+   transition: border-color 0.15s;
+}
+
+.text-input:focus {
+   border-color: var(--accent);
+}
+
+.text-input::placeholder {
+   color: var(--muted);
+}
+
+/* Error text */
+.error-text {
+   font-size: 0.8rem;
+   color: var(--error);
+}
+
+/* Peer list */
+.peer-list {
+   list-style: none;
+   display: flex;
+   flex-direction: column;
+   gap: 0.5rem;
+   margin-top: 0.25rem;
+}
+
+.peer-card {
+   display: flex;
+   align-items: center;
+   gap: 0.6rem;
+   background: var(--bg);
+   border: 1px solid var(--border);
+   border-radius: 10px;
+   padding: 0.5rem 0.75rem;
+}
+
+.peer-card-username {
+   flex: 1;
+   font-size: 0.875rem;
+   font-weight: 500;
+   color: var(--text);
+   overflow: hidden;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+}
+
+/* Online indicator dot */
+.online-dot {
+   width: 8px;
+   height: 8px;
+   border-radius: 50%;
+   background: var(--success);
+   flex-shrink: 0;
+}
+
+/* Make Connect button compact inside peer-card */
+.peer-card .btn-download {
+   width: auto;
+   padding: 0.3rem 0.75rem;
+   margin-top: 0;
+   flex-shrink: 0;
+}

@@ -1,0 +1,45 @@
+{
+   "version": "0.2.0",
+   "configurations": [
+      {
+         "name": "Server: zente.ws (debug)",
+         "type": "node",
+         "request": "launch",
+         "program": "${workspaceFolder}/zente.ws/src/server.js",
+         "cwd": "${workspaceFolder}/zente.ws",
+         "envFile": "${workspaceFolder}/zente.ws/.env",
+         "runtimeArgs": ["--inspect"],
+         "console": "integratedTerminal",
+         "restart": true
+      },
+      {
+         "name": "Client: zente.web (Vite dev)",
+         "type": "node",
+         "request": "launch",
+         "runtimeExecutable": "npm",
+         "runtimeArgs": ["run", "dev"],
+         "cwd": "${workspaceFolder}/zente.web",
+         "console": "integratedTerminal",
+         "serverReadyAction": {
+            "pattern": "Local:\\s+(https?://\\S+)",
+            "uriFormat": "%s",
+            "action": "openExternally"
+         }
+      },
+      {
+         "name": "Client: Chrome (attach)",
+         "type": "chrome",
+         "request": "launch",
+         "url": "http://localhost:5173",
+         "webRoot": "${workspaceFolder}/zente.web/src",
+         "sourceMaps": true
+      }
+   ],
+   "compounds": [
+      {
+         "name": "Full Stack (server + client)",
+         "configurations": ["Server: zente.ws (debug)", "Client: zente.web (Vite dev)"],
+         "stopAll": true
+      }
+   ]
+}

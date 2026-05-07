@@ -1,0 +1,16 @@
+{
+  "name": "signaling-server",
+  "version": "1.0.0",
+  "description": "WebRTC signaling server for P2P file transfer",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

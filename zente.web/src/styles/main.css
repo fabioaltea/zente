@@ -95,14 +95,14 @@ body {
 .qr-wrapper {
    background: #fff;
    padding: 0.75rem;
-   border-radius: 12px;
+   border-radius: 20px;
    display: inline-flex;
 }
 
 /* Drop zone */
 .drop-zone {
    border: 2px dashed var(--border);
-   border-radius: 12px;
+   border-radius: 20px;
    padding: 1rem;
    display: flex;
    flex-direction: column;
@@ -135,7 +135,7 @@ body {
 .file-card {
    background: var(--surface);
    border: 1px solid var(--border);
-   border-radius: 10px;
+   border-radius: 16px;
    padding: 0.5rem;
    display: flex;
    flex-direction: column;
@@ -163,14 +163,14 @@ body {
    width: 100%;
    aspect-ratio: 1;
    object-fit: cover;
-   border-radius: 6px;
+   border-radius: 12px;
 }
 
 .file-icon {
    width: 100%;
    aspect-ratio: 1;
    background: var(--border);
-   border-radius: 6px;
+   border-radius: 12px;
    display: flex;
    align-items: center;
    justify-content: center;
@@ -225,7 +225,7 @@ body {
    background: var(--accent);
    color: #fff;
    border: none;
-   border-radius: 6px;
+   border-radius: 999px;
    padding: 0.3rem 0;
    font-size: 0.7rem;
    font-weight: 600;
@@ -267,7 +267,7 @@ body {
    background: var(--accent);
    color: #fff;
    border: none;
-   border-radius: 10px;
+   border-radius: 999px;
    padding: 0.6rem 1rem;
    font-size: 0.875rem;
    font-weight: 600;
@@ -288,7 +288,7 @@ body {
    background: transparent;
    color: var(--accent);
    border: 1px solid var(--accent);
-   border-radius: 10px;
+   border-radius: 999px;
    padding: 0.6rem 1rem;
    font-size: 0.875rem;
    font-weight: 600;
@@ -361,7 +361,7 @@ body {
 .landing-section {
    background: var(--surface);
    border: 1px solid var(--border);
-   border-radius: 14px;
+   border-radius: 20px;
    padding: 1.25rem;
    display: flex;
    flex-direction: column;
@@ -389,7 +389,7 @@ body {
    gap: 1rem;
    background: #1a2e1a;
    border: 1px solid #2a4a2a;
-   border-radius: 10px;
+   border-radius: 16px;
    padding: 0.65rem 1rem;
    font-size: 0.875rem;
    color: var(--success);
@@ -412,7 +412,7 @@ body {
    min-width: 0;
    background: var(--bg);
    border: 1px solid var(--border);
-   border-radius: 10px;
+   border-radius: 999px;
    padding: 0.55rem 0.75rem;
    color: var(--text);
    font-size: 0.875rem;
@@ -449,7 +449,7 @@ body {
    gap: 0.6rem;
    background: var(--bg);
    border: 1px solid var(--border);
-   border-radius: 10px;
+   border-radius: 16px;
    padding: 0.5rem 0.75rem;
 }
 
@@ -489,7 +489,7 @@ body {
    justify-content: center;
    gap: 0.4rem;
    border: none;
-   border-radius: 10px;
+   border-radius: 999px;
    font-weight: 600;
    cursor: pointer;
    text-decoration: none;
@@ -513,7 +513,7 @@ body {
 .btn--sm {
    padding: 0.35rem 0.75rem;
    font-size: 0.8rem;
-   border-radius: 8px;
+   border-radius: 999px;
 }
 
 .btn--primary {
@@ -578,7 +578,7 @@ body {
 .card {
    background: var(--surface);
    border: 1px solid var(--border);
-   border-radius: 14px;
+   border-radius: 20px;
    padding: 1.5rem;
 }
 
@@ -700,34 +700,102 @@ body {
    gap: 1rem;
 }
 
-.feed-header-right {
-   display: flex;
-   align-items: center;
-   gap: 0.75rem;
+/* Profile trigger + context menu */
+.feed-profile-trigger {
+   position: relative;
 }
 
-.feed-self-link {
+.feed-profile-btn {
    display: flex;
    align-items: center;
-   gap: 0.4rem;
-   text-decoration: none;
-   color: var(--text);
-   font-size: 0.875rem;
-   font-weight: 500;
-   padding: 0.3rem 0.65rem;
-   border-radius: 8px;
-   transition: background 0.15s;
-}
-
-.feed-self-link:hover {
+   gap: 0.55rem;
    background: var(--surface);
+   border: 1px solid var(--border);
+   border-radius: 999px;
+   padding: 0.35rem 0.75rem 0.35rem 0.35rem;
+   cursor: pointer;
+   transition: background 0.15s, border-color 0.15s;
+   color: var(--text);
 }
 
-.feed-self-username {
+.feed-profile-btn:hover {
+   background: #222;
+   border-color: #3a3a3a;
+}
+
+.feed-profile-avatar {
+   width: 28px;
+   height: 28px;
+   border-radius: 50%;
+   background: rgba(79, 142, 247, 0.15);
+   border: 1px solid rgba(79, 142, 247, 0.25);
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   font-size: 0.7rem;
+   font-weight: 700;
+   color: var(--accent);
+   flex-shrink: 0;
+}
+
+.feed-profile-avatar::after {
+   content: attr(data-initials);
+}
+
+.feed-profile-username {
+   font-size: 0.875rem;
+   font-weight: 600;
    max-width: 120px;
    overflow: hidden;
    text-overflow: ellipsis;
    white-space: nowrap;
+}
+
+.feed-profile-menu {
+   position: absolute;
+   top: calc(100% + 0.5rem);
+   right: 0;
+   min-width: 160px;
+   background: var(--surface);
+   border: 1px solid var(--border);
+   border-radius: 16px;
+   padding: 0.3rem;
+   z-index: 100;
+   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.feed-menu-item {
+   display: block;
+   width: 100%;
+   text-align: left;
+   padding: 0.5rem 0.65rem;
+   border-radius: 10px;
+   font-size: 0.875rem;
+   font-weight: 500;
+   color: var(--text);
+   text-decoration: none;
+   background: none;
+   border: none;
+   cursor: pointer;
+   transition: background 0.12s;
+}
+
+.feed-menu-item:hover {
+   background: rgba(255, 255, 255, 0.06);
+}
+
+.feed-menu-item--danger {
+   color: var(--error);
+}
+
+.feed-menu-item--danger:hover {
+   background: rgba(244, 67, 54, 0.08);
+}
+
+.feed-menu-divider {
+   height: 1px;
+   background: var(--border);
+   margin: 0.3rem 0;
 }
 
 .feed-search {
@@ -758,7 +826,7 @@ body {
 .user-card {
    background: var(--surface);
    border: 1px solid var(--border);
-   border-radius: 14px;
+   border-radius: 20px;
    padding: 1.1rem 1rem;
    display: flex;
    flex-direction: column;
@@ -871,7 +939,7 @@ body {
    display: grid;
    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
    gap: 0.75rem;
-   border-radius: 14px;
+   border-radius: 20px;
    min-height: 120px;
    transition: background 0.15s, border-color 0.15s;
 }
@@ -900,14 +968,58 @@ body {
    opacity: 0.7;
 }
 
-.gallery-item {
+.gallery-skeleton {
+   aspect-ratio: 1;
+   border-radius: 20px;
+   background: linear-gradient(90deg, var(--surface) 25%, #252525 50%, var(--surface) 75%);
+   background-size: 200% 100%;
+   animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-sweep {
+   0%   { background-position: 200% 0; }
+   100% { background-position: -200% 0; }
+}
+
+.gallery-upload-card {
+   aspect-ratio: 1;
+   border-radius: 20px;
+   border: 2px dashed var(--border);
+   background: transparent;
+   cursor: pointer;
    display: flex;
-   flex-direction: column;
-   gap: 0.3rem;
-   background: var(--surface);
-   border: 1px solid var(--border);
-   border-radius: 12px;
+   align-items: center;
+   justify-content: center;
+   transition: border-color 0.15s, background 0.15s;
+}
+
+.gallery-upload-card:hover {
+   border-color: var(--accent);
+   background: rgba(79, 142, 247, 0.05);
+}
+
+.gallery-upload-icon {
+   font-size: 2rem;
+   font-weight: 300;
+   color: var(--muted);
+   line-height: 1;
+   transition: color 0.15s;
+}
+
+.gallery-upload-card:hover .gallery-upload-icon {
+   color: var(--accent);
+}
+
+.gallery-item {
+   position: relative;
+   border-radius: 20px;
    overflow: hidden;
+   cursor: pointer;
+   background: var(--surface);
+}
+
+.gallery-item:hover .gallery-img {
+   transform: scale(1.04);
 }
 
 .gallery-img {
@@ -915,16 +1027,7 @@ body {
    aspect-ratio: 1;
    object-fit: cover;
    display: block;
-}
-
-.gallery-item-name {
-   font-size: 0.72rem;
-   color: var(--muted);
-   overflow: hidden;
-   text-overflow: ellipsis;
-   white-space: nowrap;
-   flex: 1;
-   min-width: 0;
+   transition: transform 0.2s ease;
 }
 
 .gallery-img-wrapper {
@@ -932,38 +1035,12 @@ body {
    width: 100%;
    aspect-ratio: 1;
    overflow: hidden;
-   border-radius: 10px 10px 0 0;
-}
-
-.gallery-img--blur {
-   filter: blur(4px);
-   transform: scale(1.05);
-}
-
-.gallery-item--tap {
-   cursor: pointer;
-}
-
-.gallery-item--tap:hover .gallery-img {
-   filter: blur(4px) brightness(0.7);
-   transform: scale(1.05);
+   border-radius: 20px;
 }
 
 .gallery-item--loading {
    pointer-events: none;
-}
-
-.gallery-tap-hint {
-   position: absolute;
-   inset: 0;
-   display: flex;
-   align-items: center;
-   justify-content: center;
-   font-size: 0.75rem;
-   font-weight: 600;
-   color: #fff;
-   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-   pointer-events: none;
+   opacity: 0.7;
 }
 
 .gallery-progress {
@@ -981,27 +1058,90 @@ body {
    transition: width 0.1s linear;
 }
 
-.gallery-item-footer {
-   display: flex;
-   align-items: center;
-   justify-content: space-between;
-   gap: 0.25rem;
-   padding: 0.35rem 0.5rem;
-}
-
 .gallery-item-remove {
-   background: none;
+   position: absolute;
+   top: 8px;
+   right: 8px;
+   z-index: 2;
+   width: 26px;
+   height: 26px;
+   border-radius: 999px;
+   background: rgba(0, 0, 0, 0.55);
    border: none;
-   color: var(--muted);
+   color: #fff;
    font-size: 0.65rem;
    cursor: pointer;
-   padding: 0.1rem 0.25rem;
-   border-radius: 4px;
-   flex-shrink: 0;
-   line-height: 1;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   opacity: 0;
+   transition: opacity 0.15s, background 0.15s;
+   backdrop-filter: blur(4px);
+}
+
+.gallery-item:hover .gallery-item-remove {
+   opacity: 1;
 }
 
 .gallery-item-remove:hover {
-   color: var(--error);
-   background: rgba(244, 67, 54, 0.1);
+   background: rgba(244, 67, 54, 0.8);
+}
+
+/* Fullscreen modal */
+.gallery-modal {
+   position: fixed;
+   inset: 0;
+   z-index: 200;
+   background: rgba(0, 0, 0, 0.92);
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   padding: 1rem;
+   cursor: zoom-out;
+}
+
+.gallery-modal-img {
+   max-width: 100%;
+   max-height: 100%;
+   border-radius: 16px;
+   object-fit: contain;
+   cursor: default;
+   transition: opacity 0.2s;
+}
+
+.gallery-modal-img--loading {
+   opacity: 0.4;
+}
+
+.gallery-modal-close {
+   position: absolute;
+   top: 1rem;
+   right: 1rem;
+   width: 36px;
+   height: 36px;
+   border-radius: 999px;
+   background: rgba(255, 255, 255, 0.1);
+   border: none;
+   color: #fff;
+   font-size: 0.8rem;
+   cursor: pointer;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   transition: background 0.15s;
+   backdrop-filter: blur(8px);
+}
+
+.gallery-modal-close:hover {
+   background: rgba(255, 255, 255, 0.2);
+}
+
+.gallery-modal-spinner {
+   position: absolute;
+   width: 32px;
+   height: 32px;
+   border: 3px solid rgba(255, 255, 255, 0.2);
+   border-top-color: #fff;
+   border-radius: 50%;
+   animation: spin 0.7s linear infinite;
 }

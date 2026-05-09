@@ -299,4 +299,15 @@ export class WebRTCHelper {
          console.error("[WebRTC] pushManifest failed", ex);
       }
    }
+
+   destroy(): void {
+      try {
+         this.dc?.close();
+         this.pc?.close();
+         this.dc = null;
+         this.pc = null;
+      } catch (ex) {
+         console.error("[WebRTC] destroy failed", ex);
+      }
+   }
 }

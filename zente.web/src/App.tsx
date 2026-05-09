@@ -1,13 +1,21 @@
-import { Routes, Route } from "react-router-dom";
-import Landing from "./pages/Landing";
-import Board from "./pages/Board";
+import { Routes, Route, Navigate } from "react-router-dom";
+import Feed from "./pages/Feed";
+import Profile from "./pages/Profile";
+import Login from "./pages/Login";
+import { loadSession } from "./services/session";
+
+function RootRedirect() {
+   const session = loadSession();
+   return session ? <Navigate to="/feed" replace /> : <Navigate to="/login" replace />;
+}
 
 export default function App() {
    return (
       <Routes>
-         <Route path="/" element={<Landing />} />
-         <Route path="/board/:username" element={<Board />} />
-         <Route path="/join/:hostPeerId" element={<Board />} />
+         <Route path="/" element={<RootRedirect />} />
+         <Route path="/login" element={<Login />} />
+         <Route path="/feed" element={<Feed />} />
+         <Route path="/feed/:username" element={<Profile />} />
       </Routes>
    );
 }

@@ -1,4 +1,4 @@
-const WS_URL = import.meta.env.VITE_WS_URL as string;
+const WS_URL = (import.meta.env.VITE_WS_URL as string | undefined) ?? "ws://localhost:3000/ws";
 
 export type SignalingMessage =
    | { type: "registered"; peerId: string }

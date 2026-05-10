@@ -95,18 +95,15 @@ export default function Feed() {
       }
 
       async function setup() {
+         // Fetch peers first — unblocks UI. ICE servers fetched in parallel but don't gate loading.
          let peers: Awaited<ReturnType<typeof PeerApiHelper.searchPeers>> = [];
-         let iceServers: RTCIceServer[] = iceServersRef.current;
          try {
-            [peers, iceServers] = await Promise.all([
-               PeerApiHelper.searchPeers(),
-               getIceServers(),
-            ]);
+            peers = await PeerApiHelper.searchPeers();
          } catch (ex) {
-            console.error("[Feed] setup fetch failed", ex);
+            console.error("[Feed] searchPeers failed", ex);
          }
          if (cancelled) return;
-         iceServersRef.current = iceServers;
+
          const others = peers.filter((p) => p.username !== session!.username);
          setLoading(false);
 
@@ -116,6 +113,9 @@ export default function Feed() {
          Object.keys(loadAllCached()).forEach((u) => { if (!onlineSet.has(u)) evict(u); });
 
          peerQueueRef.current = [...others];
+
+         // ICE servers in background — connectPeer uses iceServersRef at call time
+         getIceServers().then((ice) => { if (!cancelled) iceServersRef.current = ice; }).catch(() => {});
 
          const signaling = new SignalingHelper(async (msg: SignalingMessage) => {
             if (msg.type === "registered") { registeredRef.current = true; connectNext(); }

@@ -1,9 +1,5 @@
 const CHUNK_SIZE = 16 * 1024;
 
-const RTC_CONFIG: RTCConfiguration = {
-   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
-
 function formatBytes(bytes: number): string {
    if (bytes < 1024) return `${bytes.toFixed(0)} B`;
    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -55,6 +51,7 @@ export class WebRTCHelper {
       onFileDownloading: (fileId: string) => void,
       onFileProgress: (fileId: string, received: number, total: number) => void,
       onConnectionChange: (connected: boolean) => void,
+      private readonly iceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }],
    ) {
       this.getFileBlob = getFileBlob;
       this.onRemoteManifest = onRemoteManifest;
@@ -214,7 +211,7 @@ export class WebRTCHelper {
 
    private createPC(onIceCandidate: (c: RTCIceCandidateInit) => void): RTCPeerConnection {
       try {
-         const pc = new RTCPeerConnection(RTC_CONFIG);
+         const pc = new RTCPeerConnection({ iceServers: this.iceServers });
          this.pc = pc;
          pc.onicecandidate = (ev) => {
             try {

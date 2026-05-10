@@ -5,6 +5,7 @@ import { WebRTCHelper, BoardFile, RemoteFile } from "../hooks/useWebRTC";
 import { PeerApiHelper } from "../services/PeerApiHelper";
 import { loadSession } from "../services/session";
 import { saveFile, loadFiles, removeFile } from "../services/fileStore";
+import { getIceServers } from "../services/iceServers";
 
 type Status = "connecting" | "waiting" | "connected" | "disconnected" | "offline";
 
@@ -137,10 +138,12 @@ export default function Profile() {
 
       let cancelled = false;
 
-      const rtc = new WebRTCHelper(getFileBlob, onRemoteManifest, onFileDownloaded, onFileDownloading, onFileProgress, onConnectionChange);
-      webRTCRef.current = rtc;
-
       async function setup() {
+         const iceServers = await getIceServers();
+         if (cancelled) return;
+
+         const rtc = new WebRTCHelper(getFileBlob, onRemoteManifest, onFileDownloaded, onFileDownloading, onFileProgress, onConnectionChange, iceServers);
+         webRTCRef.current = rtc;
          if (isOwn) {
             try {
                await PeerApiHelper.registerOnline(session!.username, session!.peerId);
@@ -182,7 +185,7 @@ export default function Profile() {
          signaling.connect(myPeerId);
       }
 
-      setup();
+      setup().catch(console.error);
 
       return () => {
          cancelled = true;

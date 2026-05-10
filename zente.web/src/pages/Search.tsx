@@ -4,13 +4,16 @@ import { PeerApiHelper, Peer } from "../services/PeerApiHelper";
 import { loadSession } from "../services/session";
 import { Input } from "../components/ui";
 
+// module-level cache — persists across navigation within the SPA session
+let peersCache: Peer[] = [];
+
 export default function Search() {
    const navigate = useNavigate();
    const session = loadSession();
 
-   const [allPeers, setAllPeers] = useState<Peer[]>([]);
+   const [allPeers, setAllPeers] = useState<Peer[]>(peersCache);
    const [query, setQuery] = useState("");
-   const [loading, setLoading] = useState(false);
+   const [loading, setLoading] = useState(peersCache.length === 0);
    const [error, setError] = useState<string | null>(null);
 
    useEffect(() => {
@@ -18,15 +21,12 @@ export default function Search() {
 
       function fetchAll() {
          PeerApiHelper.searchPeers()
-            .then(setAllPeers)
-            .catch((ex) => setError(ex instanceof Error ? ex.message : "Failed to load peers"));
+            .then((peers) => { peersCache = peers; setAllPeers(peers); })
+            .catch((ex) => setError(ex instanceof Error ? ex.message : "Failed to load peers"))
+            .finally(() => setLoading(false));
       }
 
-      setLoading(true);
-      PeerApiHelper.searchPeers()
-         .then(setAllPeers)
-         .catch((ex) => setError(ex instanceof Error ? ex.message : "Failed to load peers"))
-         .finally(() => setLoading(false));
+      fetchAll();
 
       const interval = setInterval(fetchAll, 10_000);
       return () => clearInterval(interval);

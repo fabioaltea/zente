@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { SignalingHelper, SignalingMessage } from "../hooks/useSignaling";
 import { WebRTCHelper, BoardFile } from "../hooks/useWebRTC";
@@ -41,150 +41,129 @@ export default function Feed() {
          files.map((f) => ({ peerId: cachedPeerId(username), username, file: f }))
       );
    });
-   const [connectedCount, setConnectedCount] = useState(0);
    const [loading, setLoading] = useState(true);
 
    const signalingRef = useRef<SignalingHelper | null>(null);
    const peerHelpersRef = useRef<Map<string, WebRTCHelper>>(new Map());
-   const peerUsernamesRef = useRef<Map<string, string>>(new Map()); // peerId → username
+   const peerUsernamesRef = useRef<Map<string, string>>(new Map());
    const peerQueueRef = useRef<Peer[]>([]);
    const iceServersRef = useRef<RTCIceServer[]>([{ urls: "stun:stun.l.google.com:19302" }]);
    const registeredRef = useRef(false);
-   const cancelledRef = useRef(false);
-
-   const connectPeer = useCallback((peer: Peer) => {
-      if (cancelledRef.current) return;
-      if (peerHelpersRef.current.has(peer.peer_id)) return;
-
-      const rtc = new WebRTCHelper(
-         async () => null,
-         (files) => {
-            if (cancelledRef.current) return;
-            const images = files.filter((f) => f.mimeType.startsWith("image/"));
-            cacheFiles(peer.username, images);
-            setFeedItems((prev) => [
-               ...prev.filter((item) => item.peerId !== peer.peer_id && item.username !== peer.username),
-               ...images.map((f) => ({ peerId: peer.peer_id, username: peer.username, file: f })),
-            ]);
-         },
-         () => {},
-         () => {},
-         () => {},
-         (connected) => {
-            if (cancelledRef.current) return;
-            setConnectedCount((n) => connected ? n + 1 : Math.max(0, n - 1));
-            if (!connected) {
-               peerHelpersRef.current.delete(peer.peer_id);
-               peerUsernamesRef.current.delete(peer.peer_id);
-               connectNext();
-            }
-         },
-         iceServersRef.current,
-      );
-
-      peerHelpersRef.current.set(peer.peer_id, rtc);
-      peerUsernamesRef.current.set(peer.peer_id, peer.username);
-
-      rtc.createOffer((c) => {
-         signalingRef.current?.send({ type: "ice-candidate", targetId: peer.peer_id, payload: c });
-      }).then((offer) => {
-         signalingRef.current?.send({ type: "offer", targetId: peer.peer_id, payload: offer });
-      }).catch(console.error);
-   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-   const connectNext = useCallback(() => {
-      if (!registeredRef.current) return;
-      const slots = BATCH_SIZE - peerHelpersRef.current.size;
-      if (slots <= 0) return;
-      const batch = peerQueueRef.current.splice(0, slots);
-      batch.forEach(connectPeer);
-   }, [connectPeer]);
 
    useEffect(() => {
       if (!session) { navigate("/login", { replace: true }); return; }
 
-      cancelledRef.current = false;
+      let cancelled = false;
+
+      function connectPeer(peer: Peer) {
+         if (cancelled || peerHelpersRef.current.has(peer.peer_id)) return;
+         const rtc = new WebRTCHelper(
+            async () => null,
+            (files) => {
+               if (cancelled) return;
+               const images = files.filter((f) => f.mimeType.startsWith("image/"));
+               cacheFiles(peer.username, images);
+               setFeedItems((prev) => [
+                  ...prev.filter((item) => item.peerId !== peer.peer_id && item.username !== peer.username),
+                  ...images.map((f) => ({ peerId: peer.peer_id, username: peer.username, file: f })),
+               ]);
+            },
+            () => {}, () => {}, () => {},
+            (connected) => {
+               if (cancelled) return;
+               if (!connected) {
+                  peerHelpersRef.current.delete(peer.peer_id);
+                  peerUsernamesRef.current.delete(peer.peer_id);
+                  connectNext(); // fill the freed slot
+               }
+            },
+            iceServersRef.current,
+         );
+         peerHelpersRef.current.set(peer.peer_id, rtc);
+         peerUsernamesRef.current.set(peer.peer_id, peer.username);
+         rtc.createOffer((c) =>
+            signalingRef.current?.send({ type: "ice-candidate", targetId: peer.peer_id, payload: c })
+         ).then((offer) =>
+            signalingRef.current?.send({ type: "offer", targetId: peer.peer_id, payload: offer })
+         ).catch(console.error);
+      }
+
+      function connectNext() {
+         if (!registeredRef.current) return;
+         const slots = BATCH_SIZE - peerHelpersRef.current.size;
+         peerQueueRef.current.splice(0, slots).forEach(connectPeer);
+      }
 
       async function setup() {
-         const [peers, iceServers] = await Promise.all([
-            PeerApiHelper.searchPeers(),
-            getIceServers(),
-         ]);
-         if (cancelledRef.current) return;
-
+         let peers: Awaited<ReturnType<typeof PeerApiHelper.searchPeers>> = [];
+         let iceServers: RTCIceServer[] = iceServersRef.current;
+         try {
+            [peers, iceServers] = await Promise.all([
+               PeerApiHelper.searchPeers(),
+               getIceServers(),
+            ]);
+         } catch (ex) {
+            console.error("[Feed] setup fetch failed", ex);
+         }
+         if (cancelled) return;
          iceServersRef.current = iceServers;
          const others = peers.filter((p) => p.username !== session!.username);
          setLoading(false);
 
+         // Evict cached items for peers no longer online
+         const onlineSet = new Set(others.map((p) => p.username));
+         setFeedItems((prev) => prev.filter((item) => onlineSet.has(item.username)));
+         Object.keys(loadAllCached()).forEach((u) => { if (!onlineSet.has(u)) evict(u); });
+
          peerQueueRef.current = [...others];
 
          const signaling = new SignalingHelper(async (msg: SignalingMessage) => {
-            if (msg.type === "registered") {
-               registeredRef.current = true;
-               connectNext();
-            }
-            if (msg.type === "answer") {
-               await peerHelpersRef.current.get(msg.fromId)?.handleAnswer(msg.payload);
-            }
-            if (msg.type === "ice-candidate") {
-               await peerHelpersRef.current.get(msg.fromId)?.handleIceCandidate(msg.payload);
-            }
+            if (msg.type === "registered") { registeredRef.current = true; connectNext(); }
+            if (msg.type === "answer") await peerHelpersRef.current.get(msg.fromId)?.handleAnswer(msg.payload);
+            if (msg.type === "ice-candidate") await peerHelpersRef.current.get(msg.fromId)?.handleIceCandidate(msg.payload);
          });
-
          signalingRef.current = signaling;
          signaling.connect(session!.peerId);
       }
 
-      setup().catch(console.error);
+      setup();
 
-      // Polling: refresh online list, evict gone peers, queue new ones
-      const pollInterval = setInterval(async () => {
-         if (cancelledRef.current) return;
+      const poll = setInterval(async () => {
+         if (cancelled) return;
          try {
             const fresh = await PeerApiHelper.searchPeers();
-            if (cancelledRef.current) return;
-
+            if (cancelled) return;
             const freshSet = new Set(fresh.map((p) => p.username));
 
-            // Evict peers that went offline
+            // Evict gone peers
             peerUsernamesRef.current.forEach((username, peerId) => {
-               if (!freshSet.has(username)) {
-                  peerHelpersRef.current.get(peerId)?.destroy();
-                  peerHelpersRef.current.delete(peerId);
-                  peerUsernamesRef.current.delete(peerId);
-                  evict(username);
-                  setFeedItems((prev) => prev.filter((item) => item.username !== username));
-                  setConnectedCount((n) => Math.max(0, n - 1));
-               }
+               if (freshSet.has(username)) return;
+               peerHelpersRef.current.get(peerId)?.destroy();
+               peerHelpersRef.current.delete(peerId);
+               peerUsernamesRef.current.delete(peerId);
+               evict(username);
+               setFeedItems((prev) => prev.filter((item) => item.username !== username));
             });
-
-            // Also evict queued peers that went offline
             peerQueueRef.current = peerQueueRef.current.filter((p) => freshSet.has(p.username));
-
-            // Evict cached-only items for offline peers
             setFeedItems((prev) => prev.filter(
                (item) => !item.peerId.startsWith("__cached__") || freshSet.has(item.username)
             ));
 
-            // Queue newly discovered peers
-            const knownUsernames = new Set([
+            // Queue new peers
+            const known = new Set([
                ...peerUsernamesRef.current.values(),
                ...peerQueueRef.current.map((p) => p.username),
             ]);
-            const newPeers = fresh.filter(
-               (p) => p.username !== session!.username && !knownUsernames.has(p.username)
-            );
-            peerQueueRef.current.push(...newPeers);
+            fresh.filter((p) => p.username !== session!.username && !known.has(p.username))
+               .forEach((p) => peerQueueRef.current.push(p));
 
             connectNext();
-         } catch {
-            // network error — keep existing state
-         }
+         } catch { /* keep state on network error */ }
       }, POLL_INTERVAL);
 
       return () => {
-         cancelledRef.current = true;
-         clearInterval(pollInterval);
+         cancelled = true;
+         clearInterval(poll);
          signalingRef.current?.disconnect();
          peerHelpersRef.current.forEach((rtc) => rtc.destroy());
          peerHelpersRef.current.clear();
@@ -197,14 +176,6 @@ export default function Feed() {
 
    return (
       <div className="feed-page">
-         {!loading && (
-            <div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0" }}>
-               <span className={`badge ${connectedCount > 0 ? "badge--success" : "badge--default"}`}>
-                  {connectedCount} connected
-               </span>
-            </div>
-         )}
-
          {loading && feedItems.length === 0 && (
             <div className="feed-connecting">
                <p className="feed-empty">Connecting to peers…</p>

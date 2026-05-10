@@ -29,6 +29,7 @@ export class WebRTCHelper {
    private dc: RTCDataChannel | null = null;
    private _isConnected = false;
    private localFiles: BoardFile[] = [];
+   private iceCandidateQueue: RTCIceCandidateInit[] = [];
    private incoming: {
       fileId: string;
       name: string;
@@ -251,10 +252,20 @@ export class WebRTCHelper {
       }
    }
 
+   async handleAnswer(answer: RTCSessionDescriptionInit): Promise<void> {
+      try {
+         await this.pc?.setRemoteDescription(answer);
+         await this.drainIceCandidateQueue();
+      } catch (ex) {
+         console.error("[WebRTC] handleAnswer failed", ex);
+      }
+   }
+
    async handleOffer(offer: RTCSessionDescriptionInit, onIceCandidate: (c: RTCIceCandidateInit) => void): Promise<RTCSessionDescriptionInit> {
       try {
          const pc = this.createPC(onIceCandidate);
          await pc.setRemoteDescription(offer);
+         await this.drainIceCandidateQueue();
          const answer = await pc.createAnswer();
          await pc.setLocalDescription(answer);
          return answer;
@@ -264,17 +275,20 @@ export class WebRTCHelper {
       }
    }
 
-   async handleAnswer(answer: RTCSessionDescriptionInit): Promise<void> {
-      try {
-         await this.pc?.setRemoteDescription(answer);
-      } catch (ex) {
-         console.error("[WebRTC] handleAnswer failed", ex);
+   private async drainIceCandidateQueue(): Promise<void> {
+      while (this.iceCandidateQueue.length > 0) {
+         const c = this.iceCandidateQueue.shift()!;
+         await this.pc?.addIceCandidate(c).catch((ex) => console.error("[WebRTC] queued ICE failed", ex));
       }
    }
 
    async handleIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
       try {
-         await this.pc?.addIceCandidate(candidate);
+         if (!this.pc?.remoteDescription) {
+            this.iceCandidateQueue.push(candidate);
+            return;
+         }
+         await this.pc.addIceCandidate(candidate);
       } catch (ex) {
          console.error("[WebRTC] handleIceCandidate failed", ex);
       }

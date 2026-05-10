@@ -7,6 +7,7 @@ import { loadSession } from "../services/session";
 import { saveFile, loadFiles, removeFile } from "../services/fileStore";
 import { getIceServers } from "../services/iceServers";
 import { UploadPreview } from "../components/UploadPreview";
+import { useHost } from "../context/HostContext";
 
 type Status = "connecting" | "waiting" | "connected" | "disconnected" | "offline";
 
@@ -56,10 +57,11 @@ export default function Profile() {
    const isOwn = session?.username === username;
    const fileInputRef = useRef<HTMLInputElement>(null);
 
+   const host = useHost();
+
    const [myPeerId] = useState(() => session?.peerId ?? crypto.randomUUID());
    const [status, setStatus] = useState<Status>("connecting");
    const statusRef = useRef<Status>("connecting");
-   const [viewerCount, setViewerCount] = useState(0);
    const [retryKey, setRetryKey] = useState(0);
    const [isDragging, setIsDragging] = useState(false);
 
@@ -111,7 +113,6 @@ export default function Profile() {
    };
 
    const onConnectionChange = (connected: boolean) => {
-      if (isOwn) setViewerCount(connected ? 1 : 0);
       if (connected) {
          setStatusBoth("connected");
       } else if (statusRef.current !== "offline") {
@@ -153,11 +154,6 @@ export default function Profile() {
       let cancelled = false;
 
       async function setup() {
-         const iceServers = await getIceServers();
-         if (cancelled) return;
-
-         const rtc = new WebRTCHelper(getFileBlob, onRemoteManifest, onFileDownloaded, onFileDownloading, onFileProgress, onConnectionChange, iceServers);
-         webRTCRef.current = rtc;
          if (isOwn) {
             try {
                await PeerApiHelper.registerOnline(session!.username, session!.peerId);
@@ -167,6 +163,7 @@ export default function Profile() {
                return;
             }
             if (cancelled) return;
+            host.activate(session!.username, session!.peerId);
             try {
                const stored = await loadFiles(session!.username);
                if (cancelled) return;
@@ -181,6 +178,10 @@ export default function Profile() {
                console.error("[Profile] loadFiles failed", ex);
             }
          } else {
+            const iceServers = await getIceServers();
+            if (cancelled) return;
+            const rtc = new WebRTCHelper(getFileBlob, onRemoteManifest, onFileDownloaded, onFileDownloading, onFileProgress, onConnectionChange, iceServers);
+            webRTCRef.current = rtc;
             try {
                const peers = await PeerApiHelper.searchPeers(username);
                if (cancelled) return;
@@ -192,11 +193,11 @@ export default function Profile() {
                setStatusBoth("offline");
                return;
             }
+            if (cancelled) return;
+            const signaling = new SignalingHelper(onSignalingMessage);
+            signalingRef.current = signaling;
+            signaling.connect(myPeerId);
          }
-         if (cancelled) return;
-         const signaling = new SignalingHelper(onSignalingMessage);
-         signalingRef.current = signaling;
-         signaling.connect(myPeerId);
       }
 
       setup().catch(console.error);
@@ -211,8 +212,9 @@ export default function Profile() {
    }, [retryKey]);
 
    useEffect(() => {
-      webRTCRef.current?.pushManifest(localFiles);
-   }, [localFiles]);
+      if (isOwn) host.pushManifest(localFiles, blobMapRef.current);
+      else webRTCRef.current?.pushManifest(localFiles);
+   }, [localFiles]); // eslint-disable-line react-hooks/exhaustive-deps
 
    function queueFiles(files: FileList | File[]) {
       const arr = Array.from(files).filter((f) => f.type.startsWith("image/"));
@@ -293,8 +295,8 @@ export default function Profile() {
          <header className="profile-header">
             <h1 className="profile-username">{username}</h1>
             {isOwn ? (
-               <span className={`badge ${viewerCount > 0 ? "badge--success" : "badge--default"}`}>
-                  {viewerCount} {viewerCount === 1 ? "viewer" : "viewers"}
+               <span className={`badge ${host.viewerCount > 0 ? "badge--success" : "badge--default"}`}>
+                  {host.viewerCount} {host.viewerCount === 1 ? "viewer" : "viewers"}
                </span>
             ) : (
                <span className={`status-badge ${guestStatusClass[status]}`}>{guestStatusLabel[status]}</span>

@@ -4,6 +4,7 @@ import Search from "./pages/Search";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import { AppNav } from "./components/AppNav";
+import { HostProvider } from "./context/HostContext";
 import { loadSession } from "./services/session";
 
 function RootRedirect() {
@@ -25,12 +26,14 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
    return (
-      <Routes>
-         <Route path="/" element={<Layout><RootRedirect /></Layout>} />
-         <Route path="/login" element={<Login />} />
-         <Route path="/feed" element={<Layout><Feed /></Layout>} />
-         <Route path="/feed/:username" element={<Layout><Profile /></Layout>} />
-         <Route path="/search" element={<Layout><Search /></Layout>} />
-      </Routes>
+      <HostProvider>
+         <Routes>
+            <Route path="/" element={<Layout><RootRedirect /></Layout>} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/feed" element={<Layout><Feed /></Layout>} />
+            <Route path="/feed/:username" element={<Layout><Profile /></Layout>} />
+            <Route path="/search" element={<Layout><Search /></Layout>} />
+         </Routes>
+      </HostProvider>
    );
 }

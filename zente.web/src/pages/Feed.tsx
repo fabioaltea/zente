@@ -122,8 +122,9 @@ export default function Feed() {
             if (msg.type === "ice-candidate") await peerHelpersRef.current.get(msg.fromId)?.handleIceCandidate(msg.payload);
          });
          signalingRef.current = signaling;
-         console.log("[Feed] connecting ws as", session!.peerId);
-         signaling.connect(session!.peerId);
+         const feedPeerId = crypto.randomUUID();
+         console.log("[Feed] connecting ws as", feedPeerId);
+         signaling.connect(feedPeerId);
       }
 
       setup();

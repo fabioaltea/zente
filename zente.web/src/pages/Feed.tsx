@@ -95,34 +95,34 @@ export default function Feed() {
       }
 
       async function setup() {
-         // Fetch peers first — unblocks UI. ICE servers fetched in parallel but don't gate loading.
+         console.log("[Feed] setup start, session:", session!.username);
          let peers: Awaited<ReturnType<typeof PeerApiHelper.searchPeers>> = [];
          try {
             peers = await PeerApiHelper.searchPeers();
+            console.log("[Feed] peers:", peers.map(p => p.username));
          } catch (ex) {
             console.error("[Feed] searchPeers failed", ex);
          }
-         if (cancelled) return;
+         if (cancelled) { console.warn("[Feed] cancelled"); return; }
 
          const others = peers.filter((p) => p.username !== session!.username);
          setLoading(false);
 
-         // Evict cached items for peers no longer online
          const onlineSet = new Set(others.map((p) => p.username));
          setFeedItems((prev) => prev.filter((item) => onlineSet.has(item.username)));
          Object.keys(loadAllCached()).forEach((u) => { if (!onlineSet.has(u)) evict(u); });
 
          peerQueueRef.current = [...others];
-
-         // ICE servers in background — connectPeer uses iceServersRef at call time
          getIceServers().then((ice) => { if (!cancelled) iceServersRef.current = ice; }).catch(() => {});
 
          const signaling = new SignalingHelper(async (msg: SignalingMessage) => {
+            console.log("[Feed] ws msg:", msg.type);
             if (msg.type === "registered") { registeredRef.current = true; connectNext(); }
             if (msg.type === "answer") await peerHelpersRef.current.get(msg.fromId)?.handleAnswer(msg.payload);
             if (msg.type === "ice-candidate") await peerHelpersRef.current.get(msg.fromId)?.handleIceCandidate(msg.payload);
          });
          signalingRef.current = signaling;
+         console.log("[Feed] connecting ws as", session!.peerId);
          signaling.connect(session!.peerId);
       }
 

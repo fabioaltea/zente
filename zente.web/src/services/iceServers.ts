@@ -1,5 +1,6 @@
-const METERED_APP = import.meta.env.VITE_METERED_APP_NAME as string | undefined;
 const METERED_KEY = import.meta.env.VITE_METERED_API_KEY as string | undefined;
+const METERED_APP_RAW = import.meta.env.VITE_METERED_APP_NAME as string | undefined;
+const METERED_APP = METERED_APP_RAW?.replace(/\.metered\.live$/, "");
 
 const FALLBACK: RTCIceServer[] = [
    { urls: "stun:stun.l.google.com:19302" },

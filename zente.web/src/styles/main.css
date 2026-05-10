@@ -716,6 +716,9 @@ body {
    cursor: pointer;
    transition: background 0.15s, border-color 0.15s;
    color: var(--text);
+   text-decoration: none;
+   user-select: none;
+   -webkit-user-select: none;
 }
 
 .feed-profile-btn:hover {
@@ -798,6 +801,19 @@ body {
    margin: 0.3rem 0;
 }
 
+.feed-header-center {
+   flex: 1;
+   display: flex;
+   justify-content: center;
+}
+
+.feed-connecting {
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   padding: 3rem 0;
+}
+
 .feed-search {
    display: flex;
    gap: 0.5rem;
@@ -807,6 +823,27 @@ body {
 .feed-search .input-group {
    flex: 1;
    min-width: 0;
+}
+
+/* Feed gallery item — username overlay */
+.feed-gallery-item {
+   text-decoration: none;
+}
+
+.feed-item-user {
+   position: absolute;
+   bottom: 0;
+   left: 0;
+   right: 0;
+   padding: 0.5rem 0.6rem 0.4rem;
+   background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%);
+   font-size: 0.72rem;
+   font-weight: 600;
+   color: #fff;
+   display: flex;
+   align-items: center;
+   gap: 0.3rem;
+   border-radius: 0 0 20px 20px;
 }
 
 .feed-empty {
@@ -1144,4 +1181,176 @@ body {
    border-top-color: #fff;
    border-radius: 50%;
    animation: spin 0.7s linear infinite;
+}
+
+/* ── AppNav ── */
+.app-header {
+   position: sticky;
+   top: 0;
+   z-index: 100;
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   height: 56px;
+   padding: 0 1.25rem;
+   background: var(--surface);
+   border-bottom: 1px solid var(--border);
+   backdrop-filter: blur(12px);
+}
+
+.app-header-logo {
+   font-size: 1.1rem;
+   font-weight: 700;
+   letter-spacing: -0.02em;
+   color: var(--text-primary);
+   text-decoration: none;
+}
+
+.app-nav-links {
+   display: flex;
+   align-items: center;
+   gap: 0.25rem;
+}
+
+.app-nav-link {
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   width: 38px;
+   height: 38px;
+   border-radius: 999px;
+   color: var(--text-secondary);
+   transition: background 0.15s, color 0.15s;
+   text-decoration: none;
+}
+
+.app-nav-link:hover:not(.app-nav-link--active) {
+   background: var(--surface-2);
+   color: var(--text-primary);
+}
+
+.app-nav-link--active {
+   color: var(--accent);
+   background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.app-nav-link--active:hover {
+   background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.app-nav-profile {
+   margin-left: 0.5rem;
+}
+
+/* Mobile bottom tab bar */
+.app-nav-mobile {
+   display: none;
+   position: fixed;
+   bottom: 0;
+   left: 0;
+   right: 0;
+   z-index: 100;
+   height: 60px;
+   background: var(--surface);
+   border-top: 1px solid var(--border);
+   backdrop-filter: blur(12px);
+   flex-direction: row;
+   align-items: stretch;
+}
+
+.app-tab {
+   flex: 1;
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   justify-content: center;
+   gap: 3px;
+   color: var(--text-secondary);
+   text-decoration: none;
+   transition: color 0.15s;
+}
+
+.app-tab--active {
+   color: var(--accent);
+}
+
+.app-tab-label {
+   font-size: 0.65rem;
+   font-weight: 500;
+   letter-spacing: 0.02em;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+   .app-header { display: none; }
+   .app-nav-mobile { display: flex; }
+   .feed-page,
+   .profile-page,
+   .search-page {
+      padding-bottom: 72px;
+   }
+}
+
+@media (min-width: 641px) {
+   .app-nav-mobile { display: none; }
+}
+
+/* Nav context menu */
+.nav-context-menu {
+   z-index: 300;
+   background: var(--surface-2);
+   border: 1px solid var(--border);
+   border-radius: 12px;
+   padding: 0.25rem;
+   min-width: 160px;
+   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+   animation: fadeInScale 0.12s ease;
+}
+
+@keyframes fadeInScale {
+   from { opacity: 0; transform: scale(0.93); }
+   to   { opacity: 1; transform: scale(1); }
+}
+
+.nav-context-item {
+   display: block;
+   width: 100%;
+   padding: 0.55rem 0.85rem;
+   border: none;
+   background: none;
+   border-radius: 8px;
+   font-size: 0.875rem;
+   font-weight: 500;
+   text-align: left;
+   cursor: pointer;
+   color: var(--text-primary);
+   transition: background 0.12s;
+}
+
+.nav-context-item:hover {
+   background: var(--surface);
+}
+
+.nav-context-item--danger {
+   color: #f87171;
+}
+
+.nav-context-item--danger:hover {
+   background: rgba(248, 113, 113, 0.1);
+}
+
+/* Search page mobile logo */
+.search-mobile-header {
+   display: none;
+   padding: 1rem 0;
+}
+
+@media (max-width: 640px) {
+   .search-mobile-header { display: block; }
+}
+
+/* Prevent long-press callout on mobile */
+.app-tab--me,
+.app-nav-profile {
+   -webkit-touch-callout: none;
 }

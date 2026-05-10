@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { SignalingHelper, SignalingMessage } from "../hooks/useSignaling";
 import { WebRTCHelper, BoardFile, RemoteFile } from "../hooks/useWebRTC";
 import { PeerApiHelper } from "../services/PeerApiHelper";
@@ -268,7 +268,6 @@ export default function Profile() {
    return (
       <div className="profile-page">
          <header className="profile-header">
-            <Link to="/feed" className="profile-back">← Feed</Link>
             <h1 className="profile-username">{username}</h1>
             {isOwn ? (
                <span className={`badge ${viewerCount > 0 ? "badge--success" : "badge--default"}`}>
@@ -277,7 +276,6 @@ export default function Profile() {
             ) : (
                <span className={`status-badge ${guestStatusClass[status]}`}>{guestStatusLabel[status]}</span>
             )}
-            {!isOwn && null}
          </header>
 
          {isOwn && (

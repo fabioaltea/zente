@@ -1,132 +1,139 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { PeerApiHelper, Peer } from "../services/PeerApiHelper";
-import { loadSession, clearSession } from "../services/session";
-import { clearUserFiles } from "../services/fileStore";
-import { Input } from "../components/ui";
+import { SignalingHelper, SignalingMessage } from "../hooks/useSignaling";
+import { WebRTCHelper, BoardFile } from "../hooks/useWebRTC";
+import { PeerApiHelper } from "../services/PeerApiHelper";
+import { loadSession } from "../services/session";
+import { getIceServers } from "../services/iceServers";
+
+interface FeedItem {
+   peerId: string;
+   username: string;
+   file: BoardFile;
+}
 
 export default function Feed() {
    const navigate = useNavigate();
    const session = loadSession();
 
-   const [allPeers, setAllPeers] = useState<Peer[]>([]);
-   const [query, setQuery] = useState("");
-   const [loading, setLoading] = useState(false);
-   const [error, setError] = useState<string | null>(null);
-   const [menuOpen, setMenuOpen] = useState(false);
-   const menuRef = useRef<HTMLDivElement>(null);
+   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
+   const [connectedCount, setConnectedCount] = useState(0);
+   const [loading, setLoading] = useState(true);
+
+   const signalingRef = useRef<SignalingHelper | null>(null);
+   const peerHelpersRef = useRef<Map<string, WebRTCHelper>>(new Map());
+   // peerId → username lookup
+   const peerUsernamesRef = useRef<Map<string, string>>(new Map());
 
    useEffect(() => {
       if (!session) { navigate("/login", { replace: true }); return; }
 
-      function fetchAll() {
-         PeerApiHelper.searchPeers()
-            .then(setAllPeers)
-            .catch((ex) => setError(ex instanceof Error ? ex.message : "Failed to load peers"));
-      }
+      let cancelled = false;
 
-      setLoading(true);
-      PeerApiHelper.searchPeers()
-         .then(setAllPeers)
-         .catch((ex) => setError(ex instanceof Error ? ex.message : "Failed to load peers"))
-         .finally(() => setLoading(false));
-
-      const interval = setInterval(fetchAll, 10_000);
-      return () => clearInterval(interval);
-   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-   useEffect(() => {
-      if (!menuOpen) return;
-      function onOutsideClick(e: MouseEvent) {
-         if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-            setMenuOpen(false);
-         }
-      }
-      document.addEventListener("mousedown", onOutsideClick);
-      return () => document.removeEventListener("mousedown", onOutsideClick);
-   }, [menuOpen]);
-
-   async function handleLogout() {
-      setMenuOpen(false);
-      if (session) {
-         await Promise.all([
-            PeerApiHelper.markOffline(session.username).catch(() => {}),
-            clearUserFiles(session.username).catch(() => {}),
+      async function setup() {
+         const [peers, iceServers] = await Promise.all([
+            PeerApiHelper.searchPeers(),
+            getIceServers(),
          ]);
+         if (cancelled) return;
+
+         const others = peers.filter((p) => p.username !== session!.username);
+         setLoading(false);
+
+         if (others.length === 0) return;
+
+         others.forEach((p) => peerUsernamesRef.current.set(p.peer_id, p.username));
+
+         const signaling = new SignalingHelper(async (msg: SignalingMessage) => {
+            if (msg.type === "registered") {
+               for (const peer of others) {
+                  if (cancelled) return;
+                  const rtc = new WebRTCHelper(
+                     async () => null,
+                     (files) => {
+                        if (cancelled) return;
+                        const images = files.filter((f) => f.mimeType.startsWith("image/"));
+                        setFeedItems((prev) => [
+                           ...prev.filter((item) => item.peerId !== peer.peer_id),
+                           ...images.map((f) => ({ peerId: peer.peer_id, username: peer.username, file: f })),
+                        ]);
+                     },
+                     () => {},
+                     () => {},
+                     () => {},
+                     (connected) => {
+                        if (cancelled) return;
+                        setConnectedCount((n) => connected ? n + 1 : Math.max(0, n - 1));
+                        if (!connected) {
+                           setFeedItems((prev) => prev.filter((item) => item.peerId !== peer.peer_id));
+                        }
+                     },
+                     iceServers,
+                  );
+                  peerHelpersRef.current.set(peer.peer_id, rtc);
+
+                  const offer = await rtc.createOffer((c) => {
+                     signaling.send({ type: "ice-candidate", targetId: peer.peer_id, payload: c });
+                  });
+                  signaling.send({ type: "offer", targetId: peer.peer_id, payload: offer });
+               }
+            }
+            if (msg.type === "answer") {
+               await peerHelpersRef.current.get(msg.fromId)?.handleAnswer(msg.payload);
+            }
+            if (msg.type === "ice-candidate") {
+               await peerHelpersRef.current.get(msg.fromId)?.handleIceCandidate(msg.payload);
+            }
+         });
+
+         signalingRef.current = signaling;
+         signaling.connect(session!.peerId);
       }
-      clearSession();
-      navigate("/login", { replace: true });
-   }
 
-   const trimmed = query.trim();
-   const peers = trimmed.length >= 3
-      ? allPeers.filter((p) => p.username.toLowerCase().includes(trimmed.toLowerCase()))
-      : allPeers;
+      setup().catch(console.error);
 
-   const initials = (name: string) => name.slice(0, 2).toUpperCase();
+      return () => {
+         cancelled = true;
+         signalingRef.current?.disconnect();
+         peerHelpersRef.current.forEach((rtc) => rtc.destroy());
+         peerHelpersRef.current.clear();
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, []);
 
    return (
       <div className="feed-page">
-         <header className="feed-header">
-            <span className="logo">Zente</span>
-
-            {session && (
-               <div className="feed-profile-trigger" ref={menuRef}>
-                  <button
-                     className="feed-profile-btn"
-                     onClick={() => setMenuOpen((o) => !o)}
-                     aria-expanded={menuOpen}
-                  >
-                     <div className="feed-profile-avatar" data-initials={initials(session.username)} />
-                     <span className="feed-profile-username">{session.username}</span>
-                     <span className="online-dot" aria-hidden />
-                  </button>
-
-                  {menuOpen && (
-                     <div className="feed-profile-menu">
-                        <Link
-                           to={`/feed/${session.username}`}
-                           className="feed-menu-item"
-                           onClick={() => setMenuOpen(false)}
-                        >
-                           My profile
-                        </Link>
-                        <div className="feed-menu-divider" />
-                        <button className="feed-menu-item feed-menu-item--danger" onClick={handleLogout}>
-                           Go offline
-                        </button>
-                     </div>
-                  )}
-               </div>
-            )}
-         </header>
-
-         <div className="feed-search">
-            <Input
-               placeholder="Search users…"
-               value={query}
-               onChange={(e) => setQuery(e.target.value)}
-            />
-         </div>
-
-         {error && <p className="error-text">{error}</p>}
-
-         {!loading && peers.filter((p) => p.username !== session?.username).length === 0 && !error && (
-            <p className="feed-empty">
-               {trimmed.length >= 3 ? `No users matching "${trimmed}"` : "No users online"}
-            </p>
+         {!loading && (
+            <div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0" }}>
+               <span className={`badge ${connectedCount > 0 ? "badge--success" : "badge--default"}`}>
+                  {connectedCount} connected
+               </span>
+            </div>
          )}
 
-         <div className="feed-grid">
-            {peers.filter((p) => p.username !== session?.username).map((peer) => (
-               <Link key={peer.id} to={`/feed/${peer.username}`} className="user-card">
-                  <div className="user-card-avatar" data-initials={initials(peer.username)} />
-                  <div className="user-card-info">
-                     <span className="user-card-name">{peer.username}</span>
-                     <span className="user-card-status">
+         {loading && (
+            <div className="feed-connecting">
+               <p className="feed-empty">Connecting to peers…</p>
+            </div>
+         )}
+
+         {!loading && feedItems.length === 0 && (
+            <p className="feed-empty">No content yet. Connect with peers to see their images.</p>
+         )}
+
+         <div className="profile-gallery">
+            {feedItems.map((item) => (
+               <Link
+                  key={`${item.peerId}-${item.file.id}`}
+                  to={`/feed/${item.username}`}
+                  className="gallery-item feed-gallery-item"
+               >
+                  <div className="gallery-img-wrapper">
+                     <img src={item.file.thumbnail ?? ""} alt={item.file.name} className="gallery-img" loading="lazy" />
+                     <div className="feed-item-user">
                         <span className="online-dot" aria-hidden />
-                        online
-                     </span>
+                        {item.username}
+                     </div>
                   </div>
                </Link>
             ))}

@@ -1,10 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { SignalingHelper, SignalingMessage } from "../hooks/useSignaling";
 import { WebRTCHelper, BoardFile } from "../hooks/useWebRTC";
-import { PeerApiHelper } from "../services/PeerApiHelper";
+import { PeerApiHelper, Peer } from "../services/PeerApiHelper";
 import { loadSession } from "../services/session";
 import { getIceServers } from "../services/iceServers";
+import { cacheFiles, loadAllCached, evict } from "../services/feedCache";
+
+const BATCH_SIZE = 5;
+const POLL_INTERVAL = 10_000;
 
 function relativeTime(ts: number): string {
    const diff = Date.now() - ts;
@@ -24,71 +28,100 @@ interface FeedItem {
    file: BoardFile;
 }
 
+// synthetic peerId for cache-only items (not yet connected)
+const cachedPeerId = (username: string) => `__cached__${username}`;
+
 export default function Feed() {
    const navigate = useNavigate();
    const session = loadSession();
 
-   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
+   const [feedItems, setFeedItems] = useState<FeedItem[]>(() => {
+      const cached = loadAllCached();
+      return Object.entries(cached).flatMap(([username, files]) =>
+         files.map((f) => ({ peerId: cachedPeerId(username), username, file: f }))
+      );
+   });
    const [connectedCount, setConnectedCount] = useState(0);
    const [loading, setLoading] = useState(true);
 
    const signalingRef = useRef<SignalingHelper | null>(null);
    const peerHelpersRef = useRef<Map<string, WebRTCHelper>>(new Map());
-   // peerId → username lookup
-   const peerUsernamesRef = useRef<Map<string, string>>(new Map());
+   const peerUsernamesRef = useRef<Map<string, string>>(new Map()); // peerId → username
+   const peerQueueRef = useRef<Peer[]>([]);
+   const iceServersRef = useRef<RTCIceServer[]>([{ urls: "stun:stun.l.google.com:19302" }]);
+   const registeredRef = useRef(false);
+   const cancelledRef = useRef(false);
+
+   const connectPeer = useCallback((peer: Peer) => {
+      if (cancelledRef.current) return;
+      if (peerHelpersRef.current.has(peer.peer_id)) return;
+
+      const rtc = new WebRTCHelper(
+         async () => null,
+         (files) => {
+            if (cancelledRef.current) return;
+            const images = files.filter((f) => f.mimeType.startsWith("image/"));
+            cacheFiles(peer.username, images);
+            setFeedItems((prev) => [
+               ...prev.filter((item) => item.peerId !== peer.peer_id && item.username !== peer.username),
+               ...images.map((f) => ({ peerId: peer.peer_id, username: peer.username, file: f })),
+            ]);
+         },
+         () => {},
+         () => {},
+         () => {},
+         (connected) => {
+            if (cancelledRef.current) return;
+            setConnectedCount((n) => connected ? n + 1 : Math.max(0, n - 1));
+            if (!connected) {
+               peerHelpersRef.current.delete(peer.peer_id);
+               peerUsernamesRef.current.delete(peer.peer_id);
+               connectNext();
+            }
+         },
+         iceServersRef.current,
+      );
+
+      peerHelpersRef.current.set(peer.peer_id, rtc);
+      peerUsernamesRef.current.set(peer.peer_id, peer.username);
+
+      rtc.createOffer((c) => {
+         signalingRef.current?.send({ type: "ice-candidate", targetId: peer.peer_id, payload: c });
+      }).then((offer) => {
+         signalingRef.current?.send({ type: "offer", targetId: peer.peer_id, payload: offer });
+      }).catch(console.error);
+   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+   const connectNext = useCallback(() => {
+      if (!registeredRef.current) return;
+      const slots = BATCH_SIZE - peerHelpersRef.current.size;
+      if (slots <= 0) return;
+      const batch = peerQueueRef.current.splice(0, slots);
+      batch.forEach(connectPeer);
+   }, [connectPeer]);
 
    useEffect(() => {
       if (!session) { navigate("/login", { replace: true }); return; }
 
-      let cancelled = false;
+      cancelledRef.current = false;
 
       async function setup() {
          const [peers, iceServers] = await Promise.all([
             PeerApiHelper.searchPeers(),
             getIceServers(),
          ]);
-         if (cancelled) return;
+         if (cancelledRef.current) return;
 
+         iceServersRef.current = iceServers;
          const others = peers.filter((p) => p.username !== session!.username);
          setLoading(false);
 
-         if (others.length === 0) return;
-
-         others.forEach((p) => peerUsernamesRef.current.set(p.peer_id, p.username));
+         peerQueueRef.current = [...others];
 
          const signaling = new SignalingHelper(async (msg: SignalingMessage) => {
             if (msg.type === "registered") {
-               for (const peer of others) {
-                  if (cancelled) return;
-                  const rtc = new WebRTCHelper(
-                     async () => null,
-                     (files) => {
-                        if (cancelled) return;
-                        const images = files.filter((f) => f.mimeType.startsWith("image/"));
-                        setFeedItems((prev) => [
-                           ...prev.filter((item) => item.peerId !== peer.peer_id),
-                           ...images.map((f) => ({ peerId: peer.peer_id, username: peer.username, file: f })),
-                        ]);
-                     },
-                     () => {},
-                     () => {},
-                     () => {},
-                     (connected) => {
-                        if (cancelled) return;
-                        setConnectedCount((n) => connected ? n + 1 : Math.max(0, n - 1));
-                        if (!connected) {
-                           setFeedItems((prev) => prev.filter((item) => item.peerId !== peer.peer_id));
-                        }
-                     },
-                     iceServers,
-                  );
-                  peerHelpersRef.current.set(peer.peer_id, rtc);
-
-                  const offer = await rtc.createOffer((c) => {
-                     signaling.send({ type: "ice-candidate", targetId: peer.peer_id, payload: c });
-                  });
-                  signaling.send({ type: "offer", targetId: peer.peer_id, payload: offer });
-               }
+               registeredRef.current = true;
+               connectNext();
             }
             if (msg.type === "answer") {
                await peerHelpersRef.current.get(msg.fromId)?.handleAnswer(msg.payload);
@@ -104,11 +137,60 @@ export default function Feed() {
 
       setup().catch(console.error);
 
+      // Polling: refresh online list, evict gone peers, queue new ones
+      const pollInterval = setInterval(async () => {
+         if (cancelledRef.current) return;
+         try {
+            const fresh = await PeerApiHelper.searchPeers();
+            if (cancelledRef.current) return;
+
+            const freshSet = new Set(fresh.map((p) => p.username));
+
+            // Evict peers that went offline
+            peerUsernamesRef.current.forEach((username, peerId) => {
+               if (!freshSet.has(username)) {
+                  peerHelpersRef.current.get(peerId)?.destroy();
+                  peerHelpersRef.current.delete(peerId);
+                  peerUsernamesRef.current.delete(peerId);
+                  evict(username);
+                  setFeedItems((prev) => prev.filter((item) => item.username !== username));
+                  setConnectedCount((n) => Math.max(0, n - 1));
+               }
+            });
+
+            // Also evict queued peers that went offline
+            peerQueueRef.current = peerQueueRef.current.filter((p) => freshSet.has(p.username));
+
+            // Evict cached-only items for offline peers
+            setFeedItems((prev) => prev.filter(
+               (item) => !item.peerId.startsWith("__cached__") || freshSet.has(item.username)
+            ));
+
+            // Queue newly discovered peers
+            const knownUsernames = new Set([
+               ...peerUsernamesRef.current.values(),
+               ...peerQueueRef.current.map((p) => p.username),
+            ]);
+            const newPeers = fresh.filter(
+               (p) => p.username !== session!.username && !knownUsernames.has(p.username)
+            );
+            peerQueueRef.current.push(...newPeers);
+
+            connectNext();
+         } catch {
+            // network error — keep existing state
+         }
+      }, POLL_INTERVAL);
+
       return () => {
-         cancelled = true;
+         cancelledRef.current = true;
+         clearInterval(pollInterval);
          signalingRef.current?.disconnect();
          peerHelpersRef.current.forEach((rtc) => rtc.destroy());
          peerHelpersRef.current.clear();
+         peerUsernamesRef.current.clear();
+         peerQueueRef.current = [];
+         registeredRef.current = false;
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
    }, []);
@@ -123,7 +205,7 @@ export default function Feed() {
             </div>
          )}
 
-         {loading && (
+         {loading && feedItems.length === 0 && (
             <div className="feed-connecting">
                <p className="feed-empty">Connecting to peers…</p>
             </div>

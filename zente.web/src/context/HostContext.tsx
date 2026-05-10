@@ -39,14 +39,16 @@ export function HostProvider({ children }: { children: React.ReactNode }) {
       if (activatedRef.current) return;
       activatedRef.current = true;
 
-      getIceServers().then((ice) => { iceServersRef.current = ice; }).catch(() => {});
-
-      try {
-         const stored = await loadFiles(username);
-         stored.forEach(({ file, blob }) => blobMapRef.current.set(file.id, blob));
-         localFilesRef.current = stored.map(({ file }) => file);
-      } catch (ex) {
-         console.error("[Host] loadFiles failed", ex);
+      const [iceResult, filesResult] = await Promise.allSettled([
+         getIceServers(),
+         loadFiles(username),
+      ]);
+      if (iceResult.status === "fulfilled") iceServersRef.current = iceResult.value;
+      if (filesResult.status === "fulfilled") {
+         filesResult.value.forEach(({ file, blob }) => blobMapRef.current.set(file.id, blob));
+         localFilesRef.current = filesResult.value.map(({ file }) => file);
+      } else {
+         console.error("[Host] loadFiles failed", filesResult.reason);
       }
 
       const signaling = new SignalingHelper(async (msg: SignalingMessage) => {

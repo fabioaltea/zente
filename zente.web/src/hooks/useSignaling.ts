@@ -9,6 +9,10 @@ export type SignalingMessage =
 
 export class SignalingHelper {
    private ws: WebSocket | null = null;
+   private peerId: string | null = null;
+   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+   private reconnectDelay = 1_000;
+   private destroyed = false;
    private readonly onMessage: (msg: SignalingMessage) => void;
 
    constructor(onMessage: (msg: SignalingMessage) => void) {
@@ -16,13 +20,21 @@ export class SignalingHelper {
    }
 
    connect(peerId: string): void {
+      this.peerId = peerId;
+      this.reconnectDelay = 1_000;
+      this._connect();
+   }
+
+   private _connect(): void {
+      if (this.destroyed || !this.peerId) return;
       try {
          const ws = new WebSocket(WS_URL);
          this.ws = ws;
 
          ws.onopen = () => {
+            this.reconnectDelay = 1_000;
             try {
-               ws.send(JSON.stringify({ type: "register", peerId }));
+               ws.send(JSON.stringify({ type: "register", peerId: this.peerId }));
             } catch (ex) {
                console.error("[Signaling] register failed", ex);
             }
@@ -39,6 +51,13 @@ export class SignalingHelper {
 
          ws.onerror = (ev) => {
             console.error("[Signaling] WebSocket error", ev);
+         };
+
+         ws.onclose = () => {
+            if (this.destroyed) return;
+            console.warn(`[Signaling] closed, reconnecting in ${this.reconnectDelay}ms`);
+            this.reconnectTimer = setTimeout(() => this._connect(), this.reconnectDelay);
+            this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30_000);
          };
       } catch (ex) {
          console.error("[Signaling] connect failed", ex);
@@ -58,6 +77,8 @@ export class SignalingHelper {
    }
 
    disconnect(): void {
+      this.destroyed = true;
+      if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
       try {
          this.ws?.close();
          this.ws = null;

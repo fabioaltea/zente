@@ -11,7 +11,9 @@ export interface BoardFile {
    name: string;
    size: number;
    mimeType: string;
-   thumbnail: string | null; // base64 data URL or null
+   thumbnail: string | null;
+   caption?: string;
+   uploadedAt?: number; // ms timestamp
 }
 
 export interface RemoteFile extends BoardFile {

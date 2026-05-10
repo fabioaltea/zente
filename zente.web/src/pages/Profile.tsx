@@ -6,13 +6,26 @@ import { PeerApiHelper } from "../services/PeerApiHelper";
 import { loadSession } from "../services/session";
 import { saveFile, loadFiles, removeFile } from "../services/fileStore";
 import { getIceServers } from "../services/iceServers";
+import { UploadPreview } from "../components/UploadPreview";
 
 type Status = "connecting" | "waiting" | "connected" | "disconnected" | "offline";
 
-async function fileToBoardFile(file: File): Promise<BoardFile> {
+function relativeTime(ts: number): string {
+   const diff = Date.now() - ts;
+   const mins = Math.floor(diff / 60_000);
+   if (mins < 1) return "just now";
+   if (mins < 60) return `${mins}m ago`;
+   const hours = Math.floor(mins / 60);
+   if (hours < 24) return `${hours}h ago`;
+   const days = Math.floor(hours / 24);
+   if (days < 30) return `${days}d ago`;
+   return new Date(ts).toLocaleDateString();
+}
+
+async function fileToBoardFile(file: File, caption?: string): Promise<BoardFile> {
    const id = crypto.randomUUID();
    const thumbnail = await makeThumbnail(file);
-   return { id, name: file.name, size: file.size, mimeType: file.type, thumbnail };
+   return { id, name: file.name, size: file.size, mimeType: file.type, thumbnail, caption, uploadedAt: Date.now() };
 }
 
 function makeThumbnail(file: File): Promise<string | null> {
@@ -52,6 +65,7 @@ export default function Profile() {
 
    const [localFiles, setLocalFiles] = useState<BoardFile[]>([]);
    const [pendingCount, setPendingCount] = useState(0);
+   const [uploadQueue, setUploadQueue] = useState<File[]>([]);
    const blobMapRef = useRef<Map<string, Blob>>(new Map());
    const previewUrlsRef = useRef<Map<string, string>>(new Map());
 
@@ -200,21 +214,30 @@ export default function Profile() {
       webRTCRef.current?.pushManifest(localFiles);
    }, [localFiles]);
 
-   async function addFiles(files: FileList | File[]) {
+   function queueFiles(files: FileList | File[]) {
       const arr = Array.from(files).filter((f) => f.type.startsWith("image/"));
       if (!arr.length) return;
-      setPendingCount((n) => n + arr.length);
+      setUploadQueue((prev) => [...prev, ...arr]);
+   }
+
+   async function confirmUpload(caption: string) {
+      const file = uploadQueue[0];
+      if (!file) return;
+      setUploadQueue((prev) => prev.slice(1));
+      setPendingCount((n) => n + 1);
       try {
-         const boardFiles = await Promise.all(arr.map(fileToBoardFile));
-         boardFiles.forEach((bf, i) => {
-            blobMapRef.current.set(bf.id, arr[i]);
-            previewUrlsRef.current.set(bf.id, URL.createObjectURL(arr[i]));
-            saveFile(session!.username, bf, arr[i]).catch((ex) => console.error("[Profile] saveFile failed", ex));
-         });
-         setLocalFiles((prev) => [...prev, ...boardFiles]);
+         const bf = await fileToBoardFile(file, caption || undefined);
+         blobMapRef.current.set(bf.id, file);
+         previewUrlsRef.current.set(bf.id, URL.createObjectURL(file));
+         saveFile(session!.username, bf, file).catch((ex) => console.error("[Profile] saveFile failed", ex));
+         setLocalFiles((prev) => [...prev, bf]);
       } finally {
-         setPendingCount((n) => n - arr.length);
+         setPendingCount((n) => n - 1);
       }
+   }
+
+   function cancelUpload() {
+      setUploadQueue((prev) => prev.slice(1));
    }
 
    function removeLocal(id: string) {
@@ -279,7 +302,7 @@ export default function Profile() {
          </header>
 
          {isOwn && (
-            <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={(e) => addFiles(e.target.files!)} />
+            <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={(e) => queueFiles(e.target.files!)} />
          )}
 
          {isOwn ? (
@@ -287,7 +310,7 @@ export default function Profile() {
                className={`profile-gallery ${isDragging ? "profile-gallery--dragging" : ""}`}
                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                onDragLeave={() => setIsDragging(false)}
-               onDrop={(e) => { e.preventDefault(); setIsDragging(false); addFiles(e.dataTransfer.files); }}
+               onDrop={(e) => { e.preventDefault(); setIsDragging(false); queueFiles(e.dataTransfer.files); }}
             >
                <button className="gallery-upload-card" onClick={() => fileInputRef.current?.click()} aria-label="Add images">
                   <span className="gallery-upload-icon">+</span>
@@ -303,6 +326,12 @@ export default function Profile() {
                      <div key={f.id} className="gallery-item" onClick={() => openModal(f.id)}>
                         <div className="gallery-img-wrapper">
                            <img src={src} alt={f.name} className="gallery-img" loading="lazy" />
+                           <div className="gallery-overlay">
+                              <div className="gallery-overlay-top">
+                                 {f.uploadedAt && <span className="gallery-overlay-date">{relativeTime(f.uploadedAt)}</span>}
+                              </div>
+                              {f.caption && <span className="gallery-overlay-caption">{f.caption}</span>}
+                           </div>
                            <button
                               className="gallery-item-remove"
                               onClick={(e) => { e.stopPropagation(); removeLocal(f.id); }}
@@ -337,6 +366,12 @@ export default function Profile() {
                   <div key={f.id} className="gallery-item" onClick={() => openRemote(f)}>
                      <div className="gallery-img-wrapper">
                         <img src={f.thumbnail ?? ""} alt={f.name} className="gallery-img" loading="lazy" />
+                        <div className="gallery-overlay">
+                           <div className="gallery-overlay-top">
+                              {f.uploadedAt && <span className="gallery-overlay-date">{relativeTime(f.uploadedAt)}</span>}
+                           </div>
+                           {f.caption && <span className="gallery-overlay-caption">{f.caption}</span>}
+                        </div>
                         {f.downloading && (
                            <div className="gallery-progress">
                               <div className="gallery-progress-fill" style={{ width: `${Math.round(f.progress * 100)}%` }} />
@@ -346,6 +381,14 @@ export default function Profile() {
                   </div>
                ))}
             </div>
+         )}
+
+         {uploadQueue.length > 0 && (
+            <UploadPreview
+               file={uploadQueue[0]}
+               onConfirm={confirmUpload}
+               onCancel={cancelUpload}
+            />
          )}
 
          {/* Fullscreen modal */}

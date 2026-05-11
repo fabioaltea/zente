@@ -20,10 +20,19 @@ function summarize(servers: RTCIceServer[]): string {
    return `stun=${counts.stun} turn=${counts.turn} turns=${counts.turns} other=${counts.other}`;
 }
 
+function debugList(servers: RTCIceServer[]): void {
+   servers.forEach((s, i) => {
+      const urls = Array.isArray(s.urls) ? s.urls.join(",") : s.urls;
+      const hasCred = !!(s.username && s.credential);
+      console.log(`[ICE]   [${i}] urls=${urls} hasCred=${hasCred}`);
+   });
+}
+
 export async function getIceServers(): Promise<RTCIceServer[]> {
    if (!METERED_APP || !METERED_KEY) {
       console.warn("[ICE] Metered env not set (VITE_METERED_APP_NAME / VITE_METERED_API_KEY) — using fallback STUN only");
       console.log(`[ICE] servers source=fallback ${summarize(FALLBACK)}`);
+      debugList(FALLBACK);
       return FALLBACK;
    }
    try {
@@ -35,13 +44,16 @@ export async function getIceServers(): Promise<RTCIceServer[]> {
       if (!servers.length) {
          console.warn("[ICE] Metered returned empty list — using fallback");
          console.log(`[ICE] servers source=fallback ${summarize(FALLBACK)}`);
+      debugList(FALLBACK);
          return FALLBACK;
       }
       console.log(`[ICE] servers source=metered count=${servers.length} ${summarize(servers)}`);
+      debugList(servers);
       return servers;
    } catch (ex) {
       console.error("[ICE] Metered fetch failed, falling back to STUN only", ex);
       console.log(`[ICE] servers source=fallback ${summarize(FALLBACK)}`);
+      debugList(FALLBACK);
       return FALLBACK;
    }
 }

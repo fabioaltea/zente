@@ -9,14 +9,16 @@ export function makeThumbnail(file: File): Promise<string | null> {
          img.onload = () => {
             try {
                const canvas = document.createElement("canvas");
-               const MAX = 800;
+               const MAX = 240;
                const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
                canvas.width = Math.round(img.width * ratio);
                canvas.height = Math.round(img.height * ratio);
                const ctx = canvas.getContext("2d");
                if (!ctx) { resolve(null); return; }
                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-               resolve(canvas.toDataURL("image/webp", 0.9));
+               const dataUrl = canvas.toDataURL("image/webp", 0.7);
+               console.log(`[thumb] generated ${dataUrl.length} bytes (${canvas.width}x${canvas.height})`);
+               resolve(dataUrl);
             } catch {
                resolve(null);
             }

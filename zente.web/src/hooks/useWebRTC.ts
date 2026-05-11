@@ -82,12 +82,19 @@ export class WebRTCHelper {
    private sendJSON(msg: DCMessage): void {
       try {
          if (!this.dc || this.dc.readyState !== "open") {
-            console.warn("[DC] sendJSON skipped — channel not open");
+            console.warn(`[DC ${this.tag}] sendJSON skipped — channel not open`);
             return;
          }
-         this.dc.send(JSON.stringify(msg));
+         const json = JSON.stringify(msg);
+         const max = (this.pc as RTCPeerConnection & { sctp?: { maxMessageSize?: number } }).sctp?.maxMessageSize;
+         console.log(`[DC ${this.tag}] send type=${msg.type} size=${json.length}${max ? ` maxMessageSize=${max}` : ""}`);
+         if (max && json.length > max) {
+            console.error(`[DC ${this.tag}] message size ${json.length} exceeds maxMessageSize ${max} — drop`);
+            return;
+         }
+         this.dc.send(json);
       } catch (ex) {
-         console.error("[DC] sendJSON failed", ex);
+         console.error(`[DC ${this.tag}] sendJSON failed`, ex);
       }
    }
 
@@ -243,6 +250,9 @@ export class WebRTCHelper {
          };
          pc.oniceconnectionstatechange = () => {
             console.log(`[PC ${this.tag}] iceConnectionState=${pc.iceConnectionState}`);
+            if (pc.iceConnectionState === "failed") {
+               console.error(`[PC ${this.tag}] ICE FAILED — no working candidate pair. host=${this.iceCandidateCounts.host} srflx=${this.iceCandidateCounts.srflx} relay=${this.iceCandidateCounts.relay}. If both peers have relay=0 → TURN not reachable.`);
+            }
          };
          pc.onicegatheringstatechange = () => {
             console.log(`[PC ${this.tag}] iceGatheringState=${pc.iceGatheringState}`);

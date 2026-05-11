@@ -700,6 +700,13 @@ body {
    gap: 1rem;
 }
 
+.feed-toolbar {
+   display: flex;
+   align-items: center;
+   justify-content: flex-end;
+   gap: 0.5rem;
+}
+
 /* Profile trigger + context menu */
 .feed-profile-trigger {
    position: relative;
@@ -946,6 +953,13 @@ body {
    gap: 1rem;
 }
 
+.profile-header-actions {
+   display: flex;
+   align-items: center;
+   gap: 0.5rem;
+   margin-left: auto;
+}
+
 .profile-back {
    font-size: 0.875rem;
    color: var(--muted);
@@ -970,6 +984,54 @@ body {
 
 .profile-upload-error {
    margin-top: -0.5rem;
+}
+
+.profile-add-btn {
+   width: 32px;
+   height: 32px;
+   border-radius: 999px;
+   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+   background: color-mix(in srgb, var(--accent) 20%, transparent);
+   color: var(--accent);
+   font-size: 1.25rem;
+   line-height: 1;
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   cursor: pointer;
+   transition: transform 0.15s, background 0.15s, color 0.15s;
+}
+
+.profile-add-btn:hover {
+   background: color-mix(in srgb, var(--accent) 30%, transparent);
+   color: #fff;
+   transform: translateY(-1px);
+}
+
+.profile-viewer-badge {
+   height: 32px;
+   min-width: 32px;
+   padding: 0 0.6rem;
+   gap: 0.3rem;
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+}
+
+.profile-viewer-icon {
+   width: 14px;
+   height: 14px;
+   flex-shrink: 0;
+}
+
+.feed-refresh-icon {
+   width: 16px;
+   height: 16px;
+}
+
+.feed-refresh-btn:hover .feed-refresh-icon {
+   transform: rotate(30deg);
+   transition: transform 0.2s ease;
 }
 
 .profile-gallery {
@@ -1246,16 +1308,23 @@ body {
 .app-nav-mobile {
    display: none;
    position: fixed;
-   bottom: 0;
-   left: 0;
-   right: 0;
+   left: 0.8rem;
+   right: 0.8rem;
+   bottom: calc(env(safe-area-inset-bottom, 0px) + 0.7rem);
    z-index: 100;
-   height: 60px;
-   background: var(--surface);
-   border-top: 1px solid var(--border);
-   backdrop-filter: blur(12px);
+   height: 64px;
+   background: color-mix(in srgb, var(--surface) 82%, transparent);
+   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+   border-radius: 999px;
+   box-shadow:
+      0 18px 34px rgba(0, 0, 0, 0.38),
+      0 2px 8px rgba(0, 0, 0, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+   backdrop-filter: blur(18px) saturate(120%);
    flex-direction: row;
-   align-items: stretch;
+   align-items: center;
+   padding: 10px;
+   gap: 0.2rem;
 }
 
 .app-tab {
@@ -1266,12 +1335,20 @@ body {
    justify-content: center;
    gap: 3px;
    color: var(--text-secondary);
+   border-radius: 999px;
    text-decoration: none;
-   transition: color 0.15s;
+   transition:
+      color 0.15s,
+      background 0.15s,
+      transform 0.15s;
 }
 
 .app-tab--active {
    color: var(--accent);
+   background: color-mix(in srgb, var(--accent) 18%, transparent);
+   transform: translateY(-1px);
+   padding-top:5px;
+   padding-bottom:5px;
 }
 
 .app-tab-label {
@@ -1287,7 +1364,7 @@ body {
    .feed-page,
    .profile-page,
    .search-page {
-      padding-bottom: 72px;
+      padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
    }
 }
 

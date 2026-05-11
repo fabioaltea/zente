@@ -42,8 +42,18 @@ function LoginRoute() {
 }
 
 function FeedRoute() {
-   const { remoteFiles, refreshPeers, status } = useApp();
-   return <Feed items={remoteFiles} onRefresh={refreshPeers} loading={status === "loading"} />;
+   const app = useApp();
+   return (
+      <Feed
+         items={app.remoteFiles}
+         onRefresh={app.refreshPeers}
+         loading={app.status === "loading"}
+         uploadQueueFirst={app.uploadQueue[0] ?? null}
+         onQueueFiles={app.queueFiles}
+         onConfirmUpload={app.confirmUpload}
+         onCancelUpload={app.cancelUpload}
+      />
+   );
 }
 
 function ProfileRoute() {

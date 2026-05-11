@@ -39,9 +39,21 @@ export default function OwnProfile(props: OwnProfileProps) {
       <div className="profile-page">
          <header className="profile-header">
             <h1 className="profile-username">{username}</h1>
-            <span className={`badge ${viewerCount > 0 ? "badge--success" : "badge--default"}`}>
-               {viewerCount} {viewerCount === 1 ? "viewer" : "viewers"}
-            </span>
+            <div className="profile-header-actions">
+               <span
+                  className={`badge profile-viewer-badge ${viewerCount > 0 ? "badge--success" : "badge--default"}`}
+                  aria-label={`${viewerCount} viewers`}
+               >
+                  <svg className="profile-viewer-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                     <path d="M1.5 12s3.5-6 10.5-6 10.5 6 10.5 6-3.5 6-10.5 6-10.5-6-10.5-6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                     <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+                  </svg>
+                  {viewerCount}
+               </span>
+               <button className="profile-add-btn" onClick={() => fileInputRef.current?.click()} aria-label="Add images">
+                  +
+               </button>
+            </div>
          </header>
 
          <input
@@ -59,10 +71,6 @@ export default function OwnProfile(props: OwnProfileProps) {
             onDragLeave={() => setIsDragging(false)}
             onDrop={(e) => { e.preventDefault(); setIsDragging(false); onQueueFiles(e.dataTransfer.files); }}
          >
-            <button className="gallery-upload-card" onClick={() => fileInputRef.current?.click()} aria-label="Add images">
-               <span className="gallery-upload-icon">+</span>
-            </button>
-
             {Array.from({ length: pendingCount }).map((_, i) => (
                <div key={`skeleton-${i}`} className="gallery-skeleton" />
             ))}

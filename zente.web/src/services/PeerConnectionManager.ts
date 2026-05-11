@@ -47,6 +47,7 @@ export class PeerConnectionManager {
    private connections = new Map<string, ConnectionEntry>();
    private localFiles: BoardFile[] = [];
    private localBlobs = new Map<string, Blob>();
+   private knownUsernames = new Map<string, string>();
    private destroyed = false;
 
    constructor(
@@ -55,6 +56,11 @@ export class PeerConnectionManager {
       private readonly selfPeerId: string,
       private readonly callbacks: ManagerCallbacks,
    ) {}
+
+   setKnownPeers(peers: Peer[]): void {
+      this.knownUsernames.clear();
+      peers.forEach((p) => this.knownUsernames.set(p.peer_id, p.username));
+   }
 
    handleSignalingMessage(msg: SignalingMessage): void {
       if (this.destroyed) return;
@@ -113,7 +119,10 @@ export class PeerConnectionManager {
          console.warn("[Manager] duplicate offer from", fromId);
          return;
       }
-      const username = `peer:${fromId.slice(0, 8)}`;
+      const username = this.knownUsernames.get(fromId) ?? `peer:${fromId.slice(0, 8)}`;
+      if (!this.knownUsernames.has(fromId)) {
+         console.warn(`[Manager] incoming offer from unknown peerId=${fromId.slice(0, 8)} — using stub username`);
+      }
       const helper = this.buildHelper(fromId, username, "host");
       this.connections.set(fromId, { helper, username, role: "host" });
       helper.pushManifest(this.localFiles);

@@ -163,6 +163,7 @@ export function useAppRoot(): AppRootValue {
          const others = peers.filter((p) => p.username !== s.username);
          console.log(`[App] online peers=${others.length} (${others.map((p) => p.username).join(", ") || "none"})`);
          setOnlinePeers(others);
+         manager.setKnownPeers(others);
          others.forEach((p) => manager.connectAsViewer(p));
 
          setStatus("ready");
@@ -181,11 +182,19 @@ export function useAppRoot(): AppRootValue {
             if (cancelled) return;
             const others = fresh.filter((p) => p.username !== s.username);
             setOnlinePeers(others);
+            managerRef.current.setKnownPeers(others);
             const freshIds = new Set(others.map((p) => p.peer_id));
+            const usernameById = new Map(others.map((p) => [p.peer_id, p.username]));
             managerRef.current.listConnectedPeers().forEach((peerId) => {
                if (!freshIds.has(peerId)) managerRef.current?.disconnectPeer(peerId);
             });
-            setRemoteFiles((prev) => prev.filter((r) => freshIds.has(r.peerId)));
+            setRemoteFiles((prev) => prev
+               .filter((r) => freshIds.has(r.peerId))
+               .map((r) => {
+                  const real = usernameById.get(r.peerId);
+                  return real && real !== r.username ? { ...r, username: real } : r;
+               }),
+            );
             const connected = new Set(managerRef.current.listConnectedPeers());
             others.forEach((p) => { if (!connected.has(p.peer_id)) managerRef.current?.connectAsViewer(p); });
          } catch { /* keep state on network error */ }
@@ -251,6 +260,7 @@ export function useAppRoot(): AppRootValue {
          const fresh = await PeerApiHelper.searchPeers();
          const others = fresh.filter((p) => p.username !== s.username);
          setOnlinePeers(others);
+         managerRef.current.setKnownPeers(others);
          const connected = new Set(managerRef.current.listConnectedPeers());
          others.forEach((p) => { if (!connected.has(p.peer_id)) managerRef.current!.connectAsViewer(p); });
       } catch (ex) {

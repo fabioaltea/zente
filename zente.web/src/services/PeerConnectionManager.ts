@@ -4,7 +4,6 @@ import type { Peer } from "./PeerApiHelper";
 
 export interface RemoteManifestEvent {
    peerId: string;
-   username: string;
    files: BoardFile[];
 }
 
@@ -24,7 +23,6 @@ export interface FileDownloadedEvent {
 
 export interface PeerConnectionState {
    peerId: string;
-   username: string;
    connected: boolean;
 }
 
@@ -39,7 +37,6 @@ export interface ManagerCallbacks {
 
 interface ConnectionEntry {
    helper: WebRTCHelper;
-   username: string;
    role: "viewer" | "host";
 }
 
@@ -57,9 +54,12 @@ export class PeerConnectionManager {
       private readonly callbacks: ManagerCallbacks,
    ) {}
 
-   setKnownPeers(peers: Peer[]): void {
-      this.knownUsernames.clear();
+   learnPeers(peers: Peer[]): void {
       peers.forEach((p) => this.knownUsernames.set(p.peer_id, p.username));
+   }
+
+   getUsername(peerId: string): string | undefined {
+      return this.knownUsernames.get(peerId);
    }
 
    handleSignalingMessage(msg: SignalingMessage): void {
@@ -99,8 +99,9 @@ export class PeerConnectionManager {
       }
 
       console.log(`[Manager] connectAsViewer ${peer.username} (${peer.peer_id.slice(0, 8)})`);
-      const helper = this.buildHelper(peer.peer_id, peer.username, "viewer");
-      this.connections.set(peer.peer_id, { helper, username: peer.username, role: "viewer" });
+      this.knownUsernames.set(peer.peer_id, peer.username);
+      const helper = this.buildHelper(peer.peer_id, "viewer");
+      this.connections.set(peer.peer_id, { helper, role: "viewer" });
       helper.pushManifest(this.localFiles);
 
       helper.createOffer((c) =>
@@ -119,12 +120,11 @@ export class PeerConnectionManager {
          console.warn("[Manager] duplicate offer from", fromId);
          return;
       }
-      const username = this.knownUsernames.get(fromId) ?? `peer:${fromId.slice(0, 8)}`;
       if (!this.knownUsernames.has(fromId)) {
-         console.warn(`[Manager] incoming offer from unknown peerId=${fromId.slice(0, 8)} — using stub username`);
+         console.warn(`[Manager] incoming offer from unknown peerId=${fromId.slice(0, 8)} — username will resolve on next poll`);
       }
-      const helper = this.buildHelper(fromId, username, "host");
-      this.connections.set(fromId, { helper, username, role: "host" });
+      const helper = this.buildHelper(fromId, "host");
+      this.connections.set(fromId, { helper, role: "host" });
       helper.pushManifest(this.localFiles);
 
       helper.handleOffer(payload, (c) =>
@@ -137,16 +137,16 @@ export class PeerConnectionManager {
       });
    }
 
-   private buildHelper(peerId: string, username: string, role: "viewer" | "host"): WebRTCHelper {
-      const tag = `${role}:${username}`;
+   private buildHelper(peerId: string, role: "viewer" | "host"): WebRTCHelper {
+      const tag = `${role}:${this.knownUsernames.get(peerId) ?? peerId.slice(0, 8)}`;
       return new WebRTCHelper(
          async (fileId) => this.localBlobs.get(fileId) ?? null,
-         (files) => this.callbacks.onRemoteManifest({ peerId, username, files }),
+         (files) => this.callbacks.onRemoteManifest({ peerId, files }),
          (fileId, url, name) => this.callbacks.onFileDownloaded({ peerId, fileId, url, name }),
          (fileId) => this.callbacks.onFileDownloading(peerId, fileId),
          (fileId, received, total) => this.callbacks.onFileProgress({ peerId, fileId, received, total }),
          (connected) => {
-            const ev: PeerConnectionState = { peerId, username, connected };
+            const ev: PeerConnectionState = { peerId, connected };
             if (role === "viewer") this.callbacks.onViewerConnectionChange(ev);
             else this.callbacks.onHostConnectionChange(ev);
             if (!connected) this.dropConnection(peerId);

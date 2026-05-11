@@ -51,6 +51,40 @@ export function useAppRoot(): AppRootValue {
    const [viewerCount, setViewerCount] = useState(0);
    const [pendingCount, setPendingCount] = useState(0);
    const [uploadQueue, setUploadQueue] = useState<File[]>([]);
+   const peerUsernamesRef = useRef<Map<string, string>>(new Map());
+   const pendingManifestsRef = useRef<Map<string, BoardFile[]>>(new Map());
+
+   function attachEntries(peerId: string, username: string, files: BoardFile[]) {
+      const images = files.filter((f) => f.mimeType.startsWith("image/"));
+      setRemoteFiles((prev) => {
+         const others = prev.filter((r) => r.peerId !== peerId);
+         const next = images.map<RemoteFileEntry>((f) => {
+            const existing = prev.find((r) => r.peerId === peerId && r.file.id === f.id);
+            return existing
+               ? { ...existing, file: f, username }
+               : { peerId, username, file: f, url: null, downloading: false, progress: 0 };
+         });
+         return [...others, ...next];
+      });
+   }
+
+   function learnPeers(peers: Peer[]) {
+      peers.forEach((p) => {
+         const prev = peerUsernamesRef.current.get(p.peer_id);
+         peerUsernamesRef.current.set(p.peer_id, p.username);
+         const pending = pendingManifestsRef.current.get(p.peer_id);
+         if (pending) {
+            console.log(`[App] flushing pending manifest for ${p.username} (${p.peer_id.slice(0, 8)}) files=${pending.length}`);
+            attachEntries(p.peer_id, p.username, pending);
+            pendingManifestsRef.current.delete(p.peer_id);
+         }
+         if (prev && prev !== p.username) {
+            console.log(`[App] username changed for peerId=${p.peer_id.slice(0, 8)}: ${prev} -> ${p.username}`);
+            setRemoteFiles((rs) => rs.map((r) => (r.peerId === p.peer_id ? { ...r, username: p.username } : r)));
+         }
+      });
+      managerRef.current?.learnPeers(peers);
+   }
 
    const storeRef = useRef<LocalFileStore>(new LocalFileStore());
    const signalingRef = useRef<SignalingHelper | null>(null);
@@ -116,16 +150,14 @@ export function useAppRoot(): AppRootValue {
          signalingRef.current = signaling;
 
          const manager = new PeerConnectionManager(signaling, iceServers, s.peerId, {
-            onRemoteManifest: ({ peerId, username, files }) => {
-               const images = files.filter((f) => f.mimeType.startsWith("image/"));
-               setRemoteFiles((prev) => {
-                  const others = prev.filter((r) => r.peerId !== peerId);
-                  const next = images.map<RemoteFileEntry>((f) => {
-                     const existing = prev.find((r) => r.peerId === peerId && r.file.id === f.id);
-                     return existing ? { ...existing, file: f, username } : { peerId, username, file: f, url: null, downloading: false, progress: 0 };
-                  });
-                  return [...others, ...next];
-               });
+            onRemoteManifest: ({ peerId, files }) => {
+               const username = peerUsernamesRef.current.get(peerId);
+               if (!username) {
+                  console.warn(`[App] manifest from unknown peerId=${peerId.slice(0, 8)} — buffering until username known`);
+                  pendingManifestsRef.current.set(peerId, files);
+                  return;
+               }
+               attachEntries(peerId, username, files);
             },
             onFileDownloaded: ({ peerId, fileId, url }) => {
                setRemoteFiles((prev) => prev.map((r) =>
@@ -163,7 +195,7 @@ export function useAppRoot(): AppRootValue {
          const others = peers.filter((p) => p.username !== s.username);
          console.log(`[App] online peers=${others.length} (${others.map((p) => p.username).join(", ") || "none"})`);
          setOnlinePeers(others);
-         manager.setKnownPeers(others);
+         learnPeers(others);
          others.forEach((p) => manager.connectAsViewer(p));
 
          setStatus("ready");
@@ -182,19 +214,12 @@ export function useAppRoot(): AppRootValue {
             if (cancelled) return;
             const others = fresh.filter((p) => p.username !== s.username);
             setOnlinePeers(others);
-            managerRef.current.setKnownPeers(others);
+            learnPeers(others);
             const freshIds = new Set(others.map((p) => p.peer_id));
-            const usernameById = new Map(others.map((p) => [p.peer_id, p.username]));
             managerRef.current.listConnectedPeers().forEach((peerId) => {
                if (!freshIds.has(peerId)) managerRef.current?.disconnectPeer(peerId);
             });
-            setRemoteFiles((prev) => prev
-               .filter((r) => freshIds.has(r.peerId))
-               .map((r) => {
-                  const real = usernameById.get(r.peerId);
-                  return real && real !== r.username ? { ...r, username: real } : r;
-               }),
-            );
+            setRemoteFiles((prev) => prev.filter((r) => freshIds.has(r.peerId)));
             const connected = new Set(managerRef.current.listConnectedPeers());
             others.forEach((p) => { if (!connected.has(p.peer_id)) managerRef.current?.connectAsViewer(p); });
          } catch { /* keep state on network error */ }
@@ -260,7 +285,7 @@ export function useAppRoot(): AppRootValue {
          const fresh = await PeerApiHelper.searchPeers();
          const others = fresh.filter((p) => p.username !== s.username);
          setOnlinePeers(others);
-         managerRef.current.setKnownPeers(others);
+         learnPeers(others);
          const connected = new Set(managerRef.current.listConnectedPeers());
          others.forEach((p) => { if (!connected.has(p.peer_id)) managerRef.current!.connectAsViewer(p); });
       } catch (ex) {
@@ -316,8 +341,8 @@ export function useAppRoot(): AppRootValue {
    };
 
    return {
-      status, session, localFiles, onlinePeers, remoteFiles, viewerCount,
-      pendingCount, uploadQueue,
+      status, session, localFiles, onlinePeers, remoteFiles,
+      viewerCount, pendingCount, uploadQueue,
       login, logout,
       removeLocalFile, refreshPeers, requestRemoteFile, getLocalBlobUrl,
       queueFiles, confirmUpload, cancelUpload,

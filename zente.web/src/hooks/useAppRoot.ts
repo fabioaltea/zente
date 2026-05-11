@@ -74,8 +74,8 @@ export function useAppRoot(): AppRootValue {
       setStatus("loading");
 
       async function bootstrap() {
-         let iceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
-         try { iceServers = await getIceServers(); } catch (ex) { console.warn("[App] iceServers fallback", ex); }
+         console.log(`[App] bootstrap start username=${s.username} peerId=${s.peerId}`);
+         const iceServers = await getIceServers();
          if (cancelled) return;
 
          try {
@@ -103,13 +103,19 @@ export function useAppRoot(): AppRootValue {
          if (cancelled) return;
 
          const signaling = new SignalingHelper((msg: SignalingMessage) => {
-            if (msg.type === "registered") return;
-            if (msg.type === "error") { console.error("[App] signaling error", msg.code, msg.message); return; }
+            if (msg.type === "registered") {
+               console.log(`[App] signaling registered peerId=${msg.peerId}`);
+               return;
+            }
+            if (msg.type === "error") {
+               console.error(`[App] signaling error code=${msg.code} message=${msg.message}`);
+               return;
+            }
             managerRef.current?.handleSignalingMessage(msg);
          });
          signalingRef.current = signaling;
 
-         const manager = new PeerConnectionManager(signaling, iceServers, {
+         const manager = new PeerConnectionManager(signaling, iceServers, s.peerId, {
             onRemoteManifest: ({ peerId, username, files }) => {
                const images = files.filter((f) => f.mimeType.startsWith("image/"));
                setRemoteFiles((prev) => {
@@ -144,6 +150,8 @@ export function useAppRoot(): AppRootValue {
             },
          });
          managerRef.current = manager;
+         manager.pushManifest(localFilesRef.current, blobMapRef.current);
+         console.log(`[App] manager seeded with localFiles=${localFilesRef.current.length}`);
 
          signaling.connect(s.peerId);
 
@@ -153,10 +161,12 @@ export function useAppRoot(): AppRootValue {
          if (cancelled) return;
 
          const others = peers.filter((p) => p.username !== s.username);
+         console.log(`[App] online peers=${others.length} (${others.map((p) => p.username).join(", ") || "none"})`);
          setOnlinePeers(others);
          others.forEach((p) => manager.connectAsViewer(p));
 
          setStatus("ready");
+         console.log("[App] bootstrap ready");
       }
 
       bootstrap().catch((ex) => {

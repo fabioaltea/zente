@@ -28,10 +28,12 @@ export class SignalingHelper {
    private _connect(): void {
       if (this.destroyed || !this.peerId) return;
       try {
+         console.log(`[Signaling] connecting to ${WS_URL} as peerId=${this.peerId}`);
          const ws = new WebSocket(WS_URL);
          this.ws = ws;
 
          ws.onopen = () => {
+            console.log(`[Signaling] WebSocket open — sending register peerId=${this.peerId}`);
             this.reconnectDelay = 1_000;
             try {
                ws.send(JSON.stringify({ type: "register", peerId: this.peerId }));

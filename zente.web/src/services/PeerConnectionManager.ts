@@ -52,23 +52,29 @@ export class PeerConnectionManager {
    constructor(
       private readonly signaling: SignalingHelper,
       private readonly iceServers: RTCIceServer[],
+      private readonly selfPeerId: string,
       private readonly callbacks: ManagerCallbacks,
    ) {}
 
    handleSignalingMessage(msg: SignalingMessage): void {
       if (this.destroyed) return;
       if (msg.type === "offer") {
+         console.log(`[Manager] offer received fromId=${msg.fromId.slice(0, 8)}`);
          this.handleIncomingOffer(msg.fromId, msg.payload);
          return;
       }
       if (msg.type === "answer") {
-         this.connections.get(msg.fromId)?.helper.handleAnswer(msg.payload).catch((ex) =>
+         const entry = this.connections.get(msg.fromId);
+         console.log(`[Manager] answer received fromId=${msg.fromId.slice(0, 8)} known=${!!entry}`);
+         entry?.helper.handleAnswer(msg.payload).catch((ex) =>
             console.error("[Manager] handleAnswer failed", ex),
          );
          return;
       }
       if (msg.type === "ice-candidate") {
-         this.connections.get(msg.fromId)?.helper.handleIceCandidate(msg.payload).catch((ex) =>
+         const entry = this.connections.get(msg.fromId);
+         if (!entry) console.warn(`[Manager] ICE candidate for unknown peer ${msg.fromId.slice(0, 8)}`);
+         entry?.helper.handleIceCandidate(msg.payload).catch((ex) =>
             console.error("[Manager] handleIceCandidate failed", ex),
          );
          return;
@@ -77,17 +83,27 @@ export class PeerConnectionManager {
 
    connectAsViewer(peer: Peer): void {
       if (this.destroyed) return;
-      if (this.connections.has(peer.peer_id)) return;
+      if (this.connections.has(peer.peer_id)) {
+         console.log(`[Manager] connectAsViewer skipped — already connected to ${peer.username} (${peer.peer_id.slice(0, 8)})`);
+         return;
+      }
+      if (this.selfPeerId >= peer.peer_id) {
+         console.log(`[Manager] connectAsViewer skipped — lex order, waiting for offer from ${peer.username} (${peer.peer_id.slice(0, 8)})`);
+         return;
+      }
 
+      console.log(`[Manager] connectAsViewer ${peer.username} (${peer.peer_id.slice(0, 8)})`);
       const helper = this.buildHelper(peer.peer_id, peer.username, "viewer");
       this.connections.set(peer.peer_id, { helper, username: peer.username, role: "viewer" });
+      helper.pushManifest(this.localFiles);
 
       helper.createOffer((c) =>
          this.signaling.send({ type: "ice-candidate", targetId: peer.peer_id, payload: c }),
       ).then((offer) => {
+         console.log(`[Manager] offer sent to ${peer.username}`);
          this.signaling.send({ type: "offer", targetId: peer.peer_id, payload: offer });
       }).catch((ex) => {
-         console.error("[Manager] createOffer failed", ex);
+         console.error(`[Manager] createOffer failed for ${peer.username}`, ex);
          this.dropConnection(peer.peer_id);
       });
    }
@@ -113,6 +129,7 @@ export class PeerConnectionManager {
    }
 
    private buildHelper(peerId: string, username: string, role: "viewer" | "host"): WebRTCHelper {
+      const tag = `${role}:${username}`;
       return new WebRTCHelper(
          async (fileId) => this.localBlobs.get(fileId) ?? null,
          (files) => this.callbacks.onRemoteManifest({ peerId, username, files }),
@@ -126,6 +143,7 @@ export class PeerConnectionManager {
             if (!connected) this.dropConnection(peerId);
          },
          this.iceServers,
+         tag,
       );
    }
 

@@ -46,6 +46,7 @@ export class WebRTCHelper {
    private readonly onFileDownloading: (fileId: string) => void;
    private readonly onFileProgress: (fileId: string, received: number, total: number) => void;
    private readonly onConnectionChange: (connected: boolean) => void;
+   private iceCandidateCounts = { host: 0, srflx: 0, relay: 0, prflx: 0, other: 0 };
 
    constructor(
       getFileBlob: (fileId: string) => Promise<Blob | null>,
@@ -54,7 +55,8 @@ export class WebRTCHelper {
       onFileDownloading: (fileId: string) => void,
       onFileProgress: (fileId: string, received: number, total: number) => void,
       onConnectionChange: (connected: boolean) => void,
-      private readonly iceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }],
+      private readonly iceServers: RTCIceServer[],
+      private readonly tag: string = "?",
    ) {
       this.getFileBlob = getFileBlob;
       this.onRemoteManifest = onRemoteManifest;
@@ -96,27 +98,31 @@ export class WebRTCHelper {
 
          dc.onopen = () => {
             try {
+               console.log(`[DC ${this.tag}] open — sending manifest (files=${this.localFiles.length})`);
                this.setConnected(true);
                this.sendJSON({ type: "manifest", files: this.localFiles });
             } catch (ex) {
-               console.error("[DC] onopen error", ex);
+               console.error(`[DC ${this.tag}] onopen error`, ex);
             }
          };
 
          dc.onclose = () => {
+            console.log(`[DC ${this.tag}] close`);
             this.setConnected(false);
          };
 
          dc.onerror = (ev) => {
-            console.error("[DC] error", ev);
+            console.error(`[DC ${this.tag}] error`, ev);
          };
 
          dc.onmessage = async (ev) => {
             try {
                if (typeof ev.data === "string") {
                   const msg = JSON.parse(ev.data) as DCMessage;
+                  console.log(`[DC ${this.tag}] msg type=${msg.type}`);
 
                   if (msg.type === "manifest") {
+                     console.log(`[DC ${this.tag}] manifest received files=${msg.files.length}`);
                      this.onRemoteManifest(msg.files);
                   } else if (msg.type === "request") {
                      await this.handleFileRequest(msg.fileId, dc);
@@ -214,26 +220,45 @@ export class WebRTCHelper {
 
    private createPC(onIceCandidate: (c: RTCIceCandidateInit) => void): RTCPeerConnection {
       try {
+         console.log(`[PC ${this.tag}] new RTCPeerConnection iceServers=${this.iceServers.length}`);
          const pc = new RTCPeerConnection({ iceServers: this.iceServers });
          this.pc = pc;
          pc.onicecandidate = (ev) => {
             try {
-               if (ev.candidate) onIceCandidate(ev.candidate.toJSON());
+               if (!ev.candidate) {
+                  console.log(`[PC ${this.tag}] ICE gathering complete (host=${this.iceCandidateCounts.host} srflx=${this.iceCandidateCounts.srflx} relay=${this.iceCandidateCounts.relay} prflx=${this.iceCandidateCounts.prflx})`);
+                  return;
+               }
+               const type = ev.candidate.type ?? "other";
+               if (type in this.iceCandidateCounts) (this.iceCandidateCounts as Record<string, number>)[type]++;
+               else this.iceCandidateCounts.other++;
+               onIceCandidate(ev.candidate.toJSON());
             } catch (ex) {
-               console.error("[PC] onicecandidate callback failed", ex);
+               console.error(`[PC ${this.tag}] onicecandidate callback failed`, ex);
             }
          };
          pc.ondatachannel = (ev) => {
+            console.log(`[PC ${this.tag}] ondatachannel label=${ev.channel.label}`);
             this.bindDataChannel(ev.channel);
          };
+         pc.oniceconnectionstatechange = () => {
+            console.log(`[PC ${this.tag}] iceConnectionState=${pc.iceConnectionState}`);
+         };
+         pc.onicegatheringstatechange = () => {
+            console.log(`[PC ${this.tag}] iceGatheringState=${pc.iceGatheringState}`);
+         };
+         pc.onsignalingstatechange = () => {
+            console.log(`[PC ${this.tag}] signalingState=${pc.signalingState}`);
+         };
          pc.onconnectionstatechange = () => {
+            console.log(`[PC ${this.tag}] connectionState=${pc.connectionState}`);
             if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
                this.setConnected(false);
             }
          };
          return pc;
       } catch (ex) {
-         console.error("[WebRTC] createPC failed", ex);
+         console.error(`[WebRTC ${this.tag}] createPC failed`, ex);
          throw ex;
       }
    }

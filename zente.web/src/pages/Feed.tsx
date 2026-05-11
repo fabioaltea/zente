@@ -1,8 +1,9 @@
-import { useRef } from "react";
+import { useCallback, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import type { RemoteFileEntry } from "../hooks/useAppRoot";
 import { UploadPreview } from "../components/UploadPreview";
 import { relativeTime } from "../services/relativeTime";
+import { getMosaicTileType } from "../services/mosaic";
 
 interface FeedProps {
    items: RemoteFileEntry[];
@@ -24,6 +25,17 @@ export default function Feed({
    onCancelUpload,
 }: FeedProps) {
    const fileInputRef = useRef<HTMLInputElement>(null);
+   const [imageRatios, setImageRatios] = useState<Record<string, number>>({});
+
+   const handleImageLoad = useCallback((imageKey: string, img: HTMLImageElement) => {
+      if (!img.naturalWidth || !img.naturalHeight) return;
+      const ratio = img.naturalWidth / img.naturalHeight;
+      setImageRatios((prev) => {
+         const existing = prev[imageKey];
+         if (existing && Math.abs(existing - ratio) < 0.01) return prev;
+         return { ...prev, [imageKey]: ratio };
+      });
+   }, []);
 
    return (
       <div className="feed-page">
@@ -57,25 +69,36 @@ export default function Feed({
             <p className="feed-empty">No content yet. Connect with peers to see their images.</p>
          )}
 
-         <div className="profile-gallery">
-            {items.map((item) => (
-               <Link
-                  key={`${item.peerId}-${item.file.id}`}
-                  to={`/feed/${item.username}`}
-                  className="gallery-item feed-gallery-item"
-               >
-                  <div className="gallery-img-wrapper">
-                     <img src={item.file.thumbnail ?? ""} alt={item.file.name} className="gallery-img" loading="lazy" />
-                     <div className="gallery-overlay">
-                        <div className="gallery-overlay-top">
-                           <span className="gallery-overlay-user">{item.username}</span>
-                           {item.file.uploadedAt && <span className="gallery-overlay-date">{relativeTime(item.file.uploadedAt)}</span>}
+         <div className="feed-mosaic mosaic-grid">
+            {items.map((item) => {
+               const imageKey = `${item.peerId}-${item.file.id}`;
+               const tileType = getMosaicTileType(imageRatios[imageKey] ?? 1);
+
+               return (
+                  <Link
+                     key={imageKey}
+                     to={`/feed/${item.username}`}
+                     className={`gallery-item feed-gallery-item mosaic-tile mosaic-tile--${tileType}`}
+                  >
+                     <div className="gallery-img-wrapper mosaic-media">
+                        <img
+                           src={item.file.thumbnail ?? ""}
+                           alt={item.file.name}
+                           className="gallery-img mosaic-img"
+                           loading="lazy"
+                           onLoad={(e) => handleImageLoad(imageKey, e.currentTarget)}
+                        />
+                        <div className="gallery-overlay">
+                           <div className="gallery-overlay-top">
+                              <span className="gallery-overlay-user">{item.username}</span>
+                              {item.file.uploadedAt && <span className="gallery-overlay-date">{relativeTime(item.file.uploadedAt)}</span>}
+                           </div>
+                           {item.file.caption && <span className="gallery-overlay-caption">{item.file.caption}</span>}
                         </div>
-                        {item.file.caption && <span className="gallery-overlay-caption">{item.file.caption}</span>}
                      </div>
-                  </div>
-               </Link>
-            ))}
+                  </Link>
+               );
+            })}
          </div>
 
          {uploadQueueFirst && (

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { BoardFile } from "../hooks/useWebRTC";
 import { UploadPreview } from "../components/UploadPreview";
 import { relativeTime } from "../services/relativeTime";
+import { getMosaicTileType } from "../services/mosaic";
 
 interface OwnProfileProps {
    username: string;
@@ -25,6 +26,17 @@ export default function OwnProfile(props: OwnProfileProps) {
    const fileInputRef = useRef<HTMLInputElement>(null);
    const [isDragging, setIsDragging] = useState(false);
    const [modalFileId, setModalFileId] = useState<string | null>(null);
+   const [imageRatios, setImageRatios] = useState<Record<string, number>>({});
+
+   const handleImageLoad = useCallback((imageKey: string, img: HTMLImageElement) => {
+      if (!img.naturalWidth || !img.naturalHeight) return;
+      const ratio = img.naturalWidth / img.naturalHeight;
+      setImageRatios((prev) => {
+         const existing = prev[imageKey];
+         if (existing && Math.abs(existing - ratio) < 0.01) return prev;
+         return { ...prev, [imageKey]: ratio };
+      });
+   }, []);
 
    useEffect(() => {
       if (!modalFileId) return;
@@ -66,7 +78,7 @@ export default function OwnProfile(props: OwnProfileProps) {
          />
 
          <div
-            className={`profile-gallery ${isDragging ? "profile-gallery--dragging" : ""}`}
+            className={`profile-gallery profile-mosaic mosaic-grid ${isDragging ? "profile-gallery--dragging" : ""}`}
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={(e) => { e.preventDefault(); setIsDragging(false); onQueueFiles(e.dataTransfer.files); }}
@@ -77,10 +89,17 @@ export default function OwnProfile(props: OwnProfileProps) {
 
             {files.map((f) => {
                const src = getBlobUrl(f.id) ?? f.thumbnail ?? "";
+               const tileType = getMosaicTileType(imageRatios[f.id] ?? 1);
                return (
-                  <div key={f.id} className="gallery-item" onClick={() => setModalFileId(f.id)}>
-                     <div className="gallery-img-wrapper">
-                        <img src={src} alt={f.name} className="gallery-img" loading="lazy" />
+                  <div key={f.id} className={`gallery-item mosaic-tile mosaic-tile--${tileType}`} onClick={() => setModalFileId(f.id)}>
+                     <div className="gallery-img-wrapper mosaic-media">
+                        <img
+                           src={src}
+                           alt={f.name}
+                           className="gallery-img mosaic-img"
+                           loading="lazy"
+                           onLoad={(e) => handleImageLoad(f.id, e.currentTarget)}
+                        />
                         <div className="gallery-overlay">
                            <div className="gallery-overlay-top">
                               {f.uploadedAt && <span className="gallery-overlay-date">{relativeTime(f.uploadedAt)}</span>}

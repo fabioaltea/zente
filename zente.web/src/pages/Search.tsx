@@ -1,42 +1,21 @@
-import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { PeerApiHelper, Peer } from "../services/PeerApiHelper";
-import { loadSession } from "../services/session";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import type { Peer } from "../services/PeerApiHelper";
 import { Input } from "../components/ui";
 
-// module-level cache — persists across navigation within the SPA session
-let peersCache: Peer[] = [];
+interface SearchProps {
+   peers: Peer[];
+   currentUsername: string;
+}
 
-export default function Search() {
-   const navigate = useNavigate();
-   const session = loadSession();
-
-   const [allPeers, setAllPeers] = useState<Peer[]>(peersCache);
+export default function Search({ peers, currentUsername }: SearchProps) {
    const [query, setQuery] = useState("");
-   const [loading, setLoading] = useState(peersCache.length === 0);
-   const [error, setError] = useState<string | null>(null);
-
-   useEffect(() => {
-      if (!session) { navigate("/login", { replace: true }); return; }
-
-      function fetchAll() {
-         PeerApiHelper.searchPeers()
-            .then((peers) => { peersCache = peers; setAllPeers(peers); })
-            .catch((ex) => setError(ex instanceof Error ? ex.message : "Failed to load peers"))
-            .finally(() => setLoading(false));
-      }
-
-      fetchAll();
-
-      const interval = setInterval(fetchAll, 10_000);
-      return () => clearInterval(interval);
-   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
    const trimmed = query.trim();
-   const peers = (trimmed.length >= 3
-      ? allPeers.filter((p) => p.username.toLowerCase().includes(trimmed.toLowerCase()))
-      : allPeers
-   ).filter((p) => p.username !== session?.username);
+
+   const filtered = (trimmed.length >= 3
+      ? peers.filter((p) => p.username.toLowerCase().includes(trimmed.toLowerCase()))
+      : peers
+   ).filter((p) => p.username !== currentUsername);
 
    const initials = (name: string) => name.slice(0, 2).toUpperCase();
 
@@ -49,16 +28,14 @@ export default function Search() {
             <Input placeholder="Search users…" value={query} onChange={(e) => setQuery(e.target.value)} />
          </div>
 
-         {error && <p className="error-text">{error}</p>}
-
-         {!loading && peers.length === 0 && !error && (
+         {filtered.length === 0 && (
             <p className="feed-empty">
                {trimmed.length >= 3 ? `No users matching "${trimmed}"` : "No users online"}
             </p>
          )}
 
          <div className="feed-grid">
-            {peers.map((peer) => (
+            {filtered.map((peer) => (
                <Link key={peer.id} to={`/feed/${peer.username}`} className="user-card">
                   <div className="user-card-avatar" data-initials={initials(peer.username)} />
                   <div className="user-card-info">

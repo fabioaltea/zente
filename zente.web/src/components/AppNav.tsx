@@ -1,7 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { NavLink, Link, useNavigate } from "react-router-dom";
-import { loadSession } from "../services/session";
-import { useLogout } from "../hooks/useLogout";
+import { NavLink, Link } from "react-router-dom";
 
 function IconHome() {
    return (
@@ -47,7 +45,6 @@ function ContextMenu({ anchorRect, onLogout, onClose }: ContextMenuProps) {
       return () => document.removeEventListener("pointerdown", onPointerDown);
    }, [onClose]);
 
-   // Position above anchor on mobile (bottom nav), below on desktop (top nav)
    const isBottomAnchor = anchorRect.top > window.innerHeight / 2;
    const style: React.CSSProperties = isBottomAnchor
       ? { bottom: window.innerHeight - anchorRect.top + 8, left: Math.max(8, anchorRect.left + anchorRect.width / 2 - 80) }
@@ -92,23 +89,18 @@ function useLongPress(onLongPress: () => void, delay = 500) {
    };
 }
 
-export function AppNav() {
-   const session = loadSession();
-   const logout = useLogout();
-   const navigate = useNavigate();
+interface AppNavProps {
+   username: string;
+   onLogout: () => Promise<void> | void;
+}
+
+export function AppNav({ username, onLogout }: AppNavProps) {
    const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null);
 
-   if (!session) return null;
+   const initials = username.slice(0, 2).toUpperCase();
+   const profileHref = `/feed/${username}`;
 
-   const initials = session.username.slice(0, 2).toUpperCase();
-   const profileHref = `/feed/${session.username}`;
-
-   function openMenu(e: React.MouseEvent | React.TouchEvent) {
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      setMenuAnchor(rect);
-   }
-
-   const desktopLongPress = useLongPress((  ) => {
+   const desktopLongPress = useLongPress(() => {
       const el = document.querySelector(".app-nav-profile") as HTMLElement | null;
       if (el) setMenuAnchor(el.getBoundingClientRect());
    });
@@ -120,12 +112,11 @@ export function AppNav() {
 
    async function handleLogout() {
       setMenuAnchor(null);
-      await logout();
+      await onLogout();
    }
 
    return (
       <>
-         {/* Desktop top navbar */}
          <header className="app-header">
             <Link to="/feed" className="logo app-header-logo">Zente</Link>
             <nav className="app-nav-links">
@@ -141,13 +132,12 @@ export function AppNav() {
                   {...desktopLongPress}
                >
                   <div className="feed-profile-avatar" data-initials={initials} />
-                  <span className="feed-profile-username">{session.username}</span>
+                  <span className="feed-profile-username">{username}</span>
                   <span className="online-dot" aria-hidden />
                </Link>
             </nav>
          </header>
 
-         {/* Mobile bottom tab bar */}
          <nav className="app-nav-mobile">
             <NavLink to="/feed" end className={({ isActive }) => `app-tab${isActive ? " app-tab--active" : ""}`}>
                <IconHome />
